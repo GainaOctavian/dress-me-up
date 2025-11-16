@@ -1,0 +1,10 @@
+name: dress-me-up
+services:
+  api:
+    build:
+      context: ../../..
+      dockerfile: app/backend/api/Dockerfile
+    ports:
+      - "8080:8080"
+    env_file:
+      - ../../.env
