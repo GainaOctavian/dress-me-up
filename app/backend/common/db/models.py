@@ -14,7 +14,7 @@ class User(BaseModel):
     hashed_password: str
     name: Optional[str] = None
     private_profile: bool = True
-    friend_ids: List[str] = []
+    friend_ids: Optional[List[str]] = Field(default_factory=list)
 
     COLLECTION_NAME: ClassVar[str] = "users"
 
@@ -49,10 +49,10 @@ class Item(BaseModel):
     owner_id: str
     name: str
     wardrobe_ids: List[str] = []
-    categories: Optional[List[str]] = None
-    tags: Optional[List[str]] = None
-    colors: Optional[List[str]] = None
-    image_asset_id: Optional[str] = None
+    categories: Optional[List[str]] = Field(default_factory=list)
+    tags: Optional[List[str]] = Field(default_factory=list)
+    colors: Optional[List[str]] = Field(default_factory=list)
+    image_asset_id: Optional[str] = Field(default_factory=list)
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
@@ -68,7 +68,7 @@ class Coordinates(NamedTuple):
     y: float
 
 
-class CropSettings(NamedTuple):
+class CropSettings(BaseModel):
     x: float
     y: float
     width: float
@@ -115,7 +115,7 @@ class ImageAsset(BaseModel):
     mime_type: str
     width: int
     height: int
-    metadata: Optional[Dict[str, str]] = None
+    metadata: Optional[Dict[str, str]] = Field(default_factory=dict)
     uploaded_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
