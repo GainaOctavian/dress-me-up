@@ -52,7 +52,7 @@ class Item(BaseModel):
     categories: Optional[List[str]] = Field(default_factory=list)
     tags: Optional[List[str]] = Field(default_factory=list)
     colors: Optional[List[str]] = Field(default_factory=list)
-    image_asset_id: Optional[str] = Field(default_factory=list)
+    image_asset_id: Optional[str] = None
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
