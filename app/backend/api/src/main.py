@@ -1,3 +1,4 @@
+import app.backend.common.config
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse

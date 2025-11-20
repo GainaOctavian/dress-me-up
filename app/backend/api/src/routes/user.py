@@ -52,9 +52,7 @@ async def create_user(db: DB, request: dto_in.CreateUser):
 async def update_current_user(db: DB, token: AUTH, request: dto_in.UpdateUser):
     """Update current user"""
     current_user_id = auth_token.get_user_id_from_token(token)
-    print(current_user_id)
     user = service.update_user(db, current_user_id, request)
-    print(user)
     return dto_out.GetUser(user=user)
 
 
