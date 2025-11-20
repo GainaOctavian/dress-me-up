@@ -1,6 +1,7 @@
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
+from app.backend.api.src.routes import auth
 from app.backend.api.src.routes import user
 
 app = FastAPI(
@@ -9,6 +10,7 @@ app = FastAPI(
 )
 
 app.include_router(user.router)
+app.include_router(auth.router)
 
 
 @app.get("/", include_in_schema=False)

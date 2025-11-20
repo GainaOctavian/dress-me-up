@@ -13,7 +13,7 @@ class CreateUser(BaseModel):
 class UpdateUser(BaseModel):
     """DTO for updating user information"""
     email: Optional[EmailStr] = None
-    password: Optional[str] = None
+    password: Optional[SecretStr] = None
     name: Optional[str] = None
     private_profile: Optional[bool] = None
     friend_ids: Optional[list[str]] = None
