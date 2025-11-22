@@ -8,7 +8,7 @@ from pymongo.server_api import ServerApi
 from pymongo.synchronous.database import Database
 from dotenv import load_dotenv
 
-load_dotenv()
+load_dotenv('../../../.env')
 
 MONGODB_URI = os.getenv("MONGODB_URI", "mongodb://localhost:27017")
 DB_NAME = os.getenv("DB_NAME", "dress-me-up")

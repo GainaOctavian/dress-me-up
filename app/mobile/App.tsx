@@ -1,18 +1,11 @@
-import React, { useState } from "react";
-import { RegisterScreen } from "./src/screens/RegisterScreen";
-import LoginScreen from "./src/screens/LoginScreen";
+import React from "react";
+import { AuthProvider } from "./src/context/AuthContext";
+import { RootNavigation } from "./src/navigation";
 
 export default function App() {
-  const [screen, setScreen] = useState<"register" | "login">("register");
-
-  if (screen === "login") {
-    return <LoginScreen onSwitchToRegister={() => setScreen("register")} />;
-  }
-
   return (
-    <RegisterScreen
-      onRegistered={() => setScreen("login")}
-      onSwitchToLogin={() => setScreen("login")}
-    />
+    <AuthProvider>
+      <RootNavigation />
+    </AuthProvider>
   );
 }

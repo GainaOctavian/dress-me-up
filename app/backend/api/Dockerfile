@@ -11,7 +11,7 @@ RUN apt-get update \
 COPY app/backend/common /app/backend/common
 COPY app/backend/api /app/backend/api
 RUN pip install --upgrade pip
-RUN pip install -r app/services/api/requirements.txt
+RUN pip install -r app/backend/api/requirements.txt
 
 EXPOSE 8080
 
