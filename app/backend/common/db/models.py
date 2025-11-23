@@ -33,7 +33,7 @@ class Wardrobe(BaseModel):
     user_id: str
     name: str
     description: Optional[str] = None
-    roles: Dict[str, WardrobeRole]  # Mapping user_id to role in the wardrobe
+    roles: Dict[str, WardrobeRole]  # Mapping user_ids to role in the wardrobe
     created_at: datetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
