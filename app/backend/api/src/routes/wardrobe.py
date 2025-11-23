@@ -1,6 +1,7 @@
 from starlette import status
 from fastapi import APIRouter
 
+from app.backend.common.db import models
 from app.backend.common.db.db import DB
 from app.backend.api.src.auth import auth_token
 from app.backend.api.src.auth.auth_token import AUTH
@@ -42,7 +43,11 @@ async def get_wardrobe_by_id(db: DB, wardrobe_id: str):
 @router.get("/user/me/roles/{role}",
             status_code=status.HTTP_200_OK,
             response_model=dto_out.GetAllWardrobesByUser)
-async def get_wardrobes_by_current_user_role(db: DB, token: AUTH, role: str):
+async def get_wardrobes_by_current_user_role(
+        db: DB,
+        token: AUTH,
+        role: models.WardrobeRole
+):
     """Get wardrobes for the currently authenticated user by role"""
     current_user_id = auth_token.get_user_id_from_token(token)
     wardrobes = service.get_wardrobes_by_user_role(db, current_user_id, role)
@@ -62,7 +67,12 @@ async def create_wardrobe(db: DB, token: AUTH, request: dto_in.CreateWardrobe):
 @router.put("/{wardrobe_id}",
             status_code=status.HTTP_200_OK,
             response_model=dto_out.GetWardrobe)
-async def update_wardrobe(db: DB, token:AUTH, wardrobe_id: str, request: dto_in.UpdateWardrobe):
+async def update_wardrobe(
+        db: DB,
+        token: AUTH,
+        wardrobe_id: str,
+        request: dto_in.UpdateWardrobe
+):
     """Update wardrobe"""
     current_user_id = auth_token.get_user_id_from_token(token)
     wardrobe = service.update_wardrobe(
@@ -71,8 +81,7 @@ async def update_wardrobe(db: DB, token:AUTH, wardrobe_id: str, request: dto_in.
     return dto_out.GetWardrobe(wardrobe=wardrobe)
 
 
-@router.delete("/{wardrobe_id}",
-                status_code=status.HTTP_204_NO_CONTENT)
+@router.delete("/{wardrobe_id}", status_code=status.HTTP_204_NO_CONTENT)
 async def delete_wardrobe(db: DB, token: AUTH, wardrobe_id: str):
     """Delete wardrobe"""
     current_user_id = auth_token.get_user_id_from_token(token)
