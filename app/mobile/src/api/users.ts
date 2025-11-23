@@ -6,25 +6,30 @@ import {
   UpdateUser,
 } from "../types/user";
 
-// POST /api/v1/users/
+// POST /users/
 export async function createUser(payload: CreateUser): Promise<GetUser> {
   return apiClient.postJson<GetUser>("/users/", payload);
 }
 
-// GET /api/v1/users/me  (cu token)
+// GET /users/me
 export async function getCurrentUser(token: string): Promise<GetUser> {
   return apiClient.getWithAuth<GetUser>("/users/me", token);
 }
 
-// GET /api/v1/users/
+// GET /users/ (opțional)
 export async function getUsers(): Promise<GetAllUsers> {
   return apiClient.get<GetAllUsers>("/users/");
 }
 
-// PUT /api/v1/users/me  (cu token)
+// PUT /users/me
 export async function updateCurrentUser(
   token: string,
   payload: UpdateUser
 ): Promise<GetUser> {
-  return apiClient.putJson<GetUser>("/users/me", payload);
+  return apiClient.putWithAuth<GetUser>("/users/me", token, payload);
+}
+
+// DELETE /users/me
+export async function deleteCurrentUser(token: string): Promise<void> {
+  return apiClient.deleteWithAuth<void>("/users/me", token);
 }

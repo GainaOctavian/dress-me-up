@@ -1,9 +1,9 @@
 export interface Token {
   access_token: string;
-  token_type: string; // de obicei "Bearer"
+  token_type: string; // "Bearer"
 }
 
 export interface LoginRequest {
-  email: string;    // va fi mapat pe "username" în form-data
+  email: string;
   password: string;
 }
