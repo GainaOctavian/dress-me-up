@@ -3,14 +3,18 @@ from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
 from app.backend.api.src.routes import auth
 from app.backend.api.src.routes import user
+from app.backend.api.src.routes import wardrobe
+
 
 app = FastAPI(
     title="Dress Me Up API",
     version="1.0.0"
 )
 
+
 app.include_router(user.router)
 app.include_router(auth.router)
+app.include_router(wardrobe.router)
 
 
 @app.get("/", include_in_schema=False)
