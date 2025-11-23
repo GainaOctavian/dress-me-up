@@ -1,4 +1,5 @@
-import React from "react";
+// src/components/auth/LoginForm.tsx
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -6,7 +7,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { authStyles as styles } from "../../styles/auth";
+import { useTheme } from "../../hooks/useTheme";
+import { createAuthStyles } from "../../styles/auth";
 
 type LoginFormProps = {
   email: string;
@@ -31,6 +33,9 @@ const LoginForm: React.FC<LoginFormProps> = ({
                                                onSubmit,
                                                onSwitchToRegister,
                                              }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createAuthStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <View style={styles.box}>
@@ -40,6 +45,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
 
         <TextInput
           placeholder="Email"
+          placeholderTextColor={colors.textMuted}
           keyboardType="email-address"
           style={styles.input}
           autoCapitalize="none"
@@ -50,6 +56,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
 
         <TextInput
           placeholder="Parola"
+          placeholderTextColor={colors.textMuted}
           secureTextEntry
           style={styles.input}
           value={password}
@@ -62,7 +69,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.buttonTextOnPrimary} />
           ) : (
             <Text style={styles.buttonText}>Autentifică-te</Text>
           )}

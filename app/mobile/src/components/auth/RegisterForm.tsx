@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useMemo } from "react";
 import {
   View,
   Text,
@@ -6,7 +6,8 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from "react-native";
-import { authStyles as styles } from "../../styles/auth";
+import { useTheme } from "../../hooks/useTheme";
+import { createAuthStyles } from "../../styles/auth";
 
 type RegisterFormProps = {
   email: string;
@@ -39,6 +40,9 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
                                                      onSubmit,
                                                      onSwitchToLogin,
                                                    }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createAuthStyles(colors), [colors]);
+
   return (
     <View style={styles.container}>
       <View style={styles.box}>
@@ -48,6 +52,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
 
         <TextInput
           placeholder="Email"
+          placeholderTextColor={colors.textMuted}
           keyboardType="email-address"
           style={styles.input}
           autoCapitalize="none"
@@ -58,6 +63,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
 
         <TextInput
           placeholder="Nume (opțional)"
+          placeholderTextColor={colors.textMuted}
           style={styles.input}
           value={name}
           onChangeText={onNameChange}
@@ -65,6 +71,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
 
         <TextInput
           placeholder="Parola"
+          placeholderTextColor={colors.textMuted}
           secureTextEntry
           style={styles.input}
           value={password}
@@ -73,6 +80,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
 
         <TextInput
           placeholder="Confirmă parola"
+          placeholderTextColor={colors.textMuted}
           secureTextEntry
           style={styles.input}
           value={confirmPassword}
@@ -85,7 +93,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
           disabled={loading}
         >
           {loading ? (
-            <ActivityIndicator color="#fff" />
+            <ActivityIndicator color={colors.buttonTextOnPrimary} />
           ) : (
             <Text style={styles.buttonText}>Înregistrează-te</Text>
           )}
