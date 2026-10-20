@@ -8,8 +8,8 @@ Imports are absolute from the repo root (`from app.backend.common.db import mode
 python -m app.backend.api.src.main
 ```
 
-Serves on `:8080`, `/` redirects to `/docs`. Docker: `docker compose -f app/infra/compose/compose.yaml up --build`.
-`db.py` loads `../../../.env` relative to the CWD; when running locally, export the vars (or rely on the Docker `env_file`).
+Serves on `:8080` inside Docker (host port from `API_PORT`), `/` redirects to `/docs`. Docker: `docker compose -f app/infra/compose/compose.yaml up --build`.
+`db.py` loads `app/.env` relative to its own file, so running from any directory works.
 
 ## Layers (`api/src/`)
 
@@ -21,6 +21,13 @@ One file per resource in each layer; keep the split:
 - `dto/input`, `dto/output` — Pydantic request/response bodies. Responses are wrapped: `{"wardrobe": ...}`, `{"wardrobes": [...]}`, `{"user": ...}`.
 
 Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` dependencies; add them as route params.
+
+## Infra hooks
+
+- `common/db/db.py`: one cached `MongoClient` per process (`get_client`); `get_db` returns the database. TLS CA bundle only for `mongodb+srv://` (Atlas), so a plain local Mongo works too.
+- `main.py` lifespan creates indexes (`INDEXES`: items.wardrobe_ids, items.owner_id, wardrobes `roles.$**`, unique users.email). It uses `app.dependency_overrides[get_db]` when set, so tests index their fake DB. Add an entry there for every new query path.
+- Env the API gets from compose (used from plan 03/04 on): `S3_ENDPOINT_URL` (internal, `http://seaweedfs:8333`), `S3_PUBLIC_ENDPOINT_URL` (sign presigned URLs with this one), `S3_BUCKET`, `S3_ACCESS_KEY`, `S3_SECRET_KEY`, `RABBITMQ_URL`. Use `signature_version="s3v4"` and region `us-east-1` with boto3.
+- SeaweedFS quirk: `list_buckets` doesn't show the bucket created by `seaweedfs-init`, but reads/writes to it work. Don't rely on `list_buckets`/`head_bucket` checks.
 
 ## Models (`common/db/models.py`)
 

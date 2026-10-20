@@ -8,7 +8,8 @@ Wardrobe / outfit app: FastAPI + MongoDB backend, Expo (React Native) mobile cli
 - `app/backend/common/` — code shared across backend services: Mongo models (`db/models.py`), DB dependency (`db/db.py`), id/password helpers (`stringproc/`).
 - `app/backend/worker/`, `app/backend/file-service/` — placeholders, empty `main.py`.
 - `app/mobile/` — Expo app. See `app/mobile/CLAUDE.md`.
-- `app/infra/compose/compose.yaml` — runs the API only; reads env from `app/.env` (gitignored; needs `MONGODB_URI`, `DB_NAME`, `SECRET_KEY`).
+- `app/infra/compose/` — local stack: `compose.yaml` runs the API, SeaweedFS (S3-compatible, port 8333; MinIO stopped publishing images) and RabbitMQ (5672, UI on 15672 guest/guest). MongoDB is Atlas via `MONGODB_URI` in `app/.env` (gitignored; also `DB_NAME`, `SECRET_KEY`); add `-f compose.local-db.yaml` for a local Mongo instead. Host-specific values go in `app/infra/compose/.env` (gitignored): `API_PORT` (the user's 8080 is taken, they use 8000) and `S3_PUBLIC_ENDPOINT_URL` (LAN IP, so presigned URLs work from the phone).
+- Run everything: `docker compose -f app/infra/compose/compose.yaml up -d --build`.
 - `docs/` — diagrams (class diagram, sequence diagram). `docs/claude-plans/` (gitignored) holds per-feature implementation plans derived from them; start from `00-overview.md`.
 
 ## Conventions

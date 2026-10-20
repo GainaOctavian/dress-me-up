@@ -1,3 +1,6 @@
+import logging
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
 from fastapi.responses import RedirectResponse
@@ -5,11 +8,36 @@ from app.backend.api.src.routes import auth
 from app.backend.api.src.routes import user
 from app.backend.api.src.routes import wardrobe
 from app.backend.api.src.routes import item
+from app.backend.common.db import models
+from app.backend.common.db.db import get_db
+
+logger = logging.getLogger(__name__)
+
+INDEXES = [
+    (models.Item.COLLECTION_NAME, "wardrobe_ids", {}),
+    (models.Item.COLLECTION_NAME, "owner_id", {}),
+    # wardrobes are looked up by roles.<user_id>; keys are dynamic
+    (models.Wardrobe.COLLECTION_NAME, "roles.$**", {}),
+    (models.User.COLLECTION_NAME, "email", {"unique": True}),
+]
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # honour dependency overrides, so tests index their fake DB, not Atlas
+    db = app.dependency_overrides.get(get_db, get_db)()
+    for collection, key, options in INDEXES:
+        try:
+            db.get_collection(collection).create_index(key, **options)
+        except Exception as e:  # never block startup on an index
+            logger.warning("Index %s.%s not created: %s", collection, key, e)
+    yield
 
 
 app = FastAPI(
     title="Dress Me Up API",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan
 )
 
 
