@@ -1,21 +1,37 @@
-import React, { createContext, useState, ReactNode, useEffect } from "react";
+import React, {
+  createContext,
+  useState,
+  ReactNode,
+  useEffect,
+} from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
 import { login as loginApi } from "../api/auth";
+import { getCurrentUser } from "../api/users";
+import { clearCache } from "../api/cache";
+import { User } from "../types/user";
+
+const TOKEN_KEY = "auth:token";
+const USER_KEY = "auth:user";
 
 type AuthContextType = {
   isAuthenticated: boolean;
   isLoading: boolean;
   token: string | null;
+  user: User | null;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  setUser: (user: User) => void;
 };
 
 export const AuthContext = createContext<AuthContextType>({
   isAuthenticated: false,
-  isLoading: false,
+  isLoading: true,
   token: null,
-  // funcții default doar ca să nu crape tipurile
+  user: null,
   login: async () => {},
   logout: () => {},
+  setUser: () => {},
 });
 
 type AuthProviderProps = {
@@ -24,27 +40,68 @@ type AuthProviderProps = {
 
 export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
   const [token, setToken] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [user, setUserState] = useState<User | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
-  // aici ulterior poți încărca token-ul din AsyncStorage
+  // Hydrate from AsyncStorage on app start
   useEffect(() => {
-    // TODO: load token from storage
+    const hydrate = async () => {
+      try {
+        const [storedToken, storedUser] = await Promise.all([
+          AsyncStorage.getItem(TOKEN_KEY),
+          AsyncStorage.getItem(USER_KEY),
+        ]);
+
+        if (storedToken) {
+          setToken(storedToken);
+        }
+
+        if (storedUser) {
+          try {
+            setUserState(JSON.parse(storedUser) as User);
+          } catch (e) {
+            console.log("Failed to parse stored user", e);
+          }
+        }
+      } catch (e) {
+        console.log("Failed to hydrate auth from storage", e);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    void hydrate();
   }, []);
 
+  const setUser = (next: User) => {
+    setUserState(next);
+    void AsyncStorage.setItem(USER_KEY, JSON.stringify(next));
+  };
+
+  // isLoading is only for the initial hydrate: toggling it here would make
+  // RootNavigation unmount LoginScreen (and its error message) mid-login.
+  // LoginScreen tracks its own loading state.
   const login = async (email: string, password: string) => {
-    setIsLoading(true);
-    try {
-      const tokenResponse = await loginApi({ email, password });
-      setToken(tokenResponse.access_token);
-      // TODO: salvează token în AsyncStorage
-    } finally {
-      setIsLoading(false);
-    }
+    const { access_token } = await loginApi({ email, password });
+    // fetch the user before committing the token, so a failure here
+    // doesn't leave us "authenticated" without a user
+    const { user: currentUser } = await getCurrentUser(access_token);
+
+    await AsyncStorage.multiSet([
+      [TOKEN_KEY, access_token],
+      [USER_KEY, JSON.stringify(currentUser)],
+    ]);
+    setUserState(currentUser);
+    setToken(access_token);
   };
 
   const logout = () => {
     setToken(null);
-    // TODO: șterge token din AsyncStorage
+    setUserState(null);
+    // also drop cached wardrobes/users, so the next account on this device
+    // doesn't see the previous one's data
+    void AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
+    void clearCache();
   };
 
   return (
@@ -53,8 +110,10 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
         isAuthenticated: !!token,
         isLoading,
         token,
+        user,
         login,
         logout,
+        setUser,
       }}
     >
       {children}

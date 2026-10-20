@@ -3,11 +3,6 @@ from pymongo.synchronous.database import Database
 from app.backend.common.db import models
 
 
-def find_all_users(db: Database):
-    collection = db.get_collection(models.User.COLLECTION_NAME)
-    return collection.find({}).to_list()
-
-
 def find_user_by_id(db: Database, user_id: str):
     collection = db.get_collection(models.User.COLLECTION_NAME)
     return collection.find_one({"_id": user_id})

@@ -11,7 +11,8 @@ from app.backend.common.stringproc.stringproc import generate_id
 class User(BaseModel):
     id: str = Field(default_factory=generate_id, alias="_id")
     email: EmailStr
-    hashed_password: str
+    # never serialized in API responses; insert_user writes it explicitly
+    hashed_password: str = Field(exclude=True)
     name: Optional[str] = None
     private_profile: bool = True
     friend_ids: Optional[List[str]] = Field(default_factory=list)

@@ -12,10 +12,6 @@ export interface GetUser {
   user: User;
 }
 
-export interface GetAllUsers {
-  users: User[];
-}
-
 export interface CreateUser {
   email: string;
   password: string;

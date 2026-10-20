@@ -3,13 +3,6 @@ from pydantic import BaseModel
 from app.backend.common.db import models
 
 
-class GetAllWardrobes(BaseModel):
-    """
-    DTO for retrieving all wardrobes
-    """
-    wardrobes: List[models.Wardrobe]
-
-
 class GetAllWardrobesByUser(BaseModel):
     """
     DTO for retrieving all wardrobes by a specific user

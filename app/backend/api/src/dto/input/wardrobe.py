@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 from typing import Optional, Dict
 from app.backend.common.db import models
 
@@ -14,3 +14,15 @@ class UpdateWardrobe(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
     roles: Optional[Dict[str, models.WardrobeRole]] = None
+
+
+class AddUserToWardrobe(BaseModel):
+    """DTO for adding a user to a wardrobe with a specific role"""
+    user_id: str
+    role: models.WardrobeRole
+
+
+class AddUserByEmailToWardrobe(BaseModel):
+    """DTO for adding a user to a wardrobe by email with a specific role"""
+    email: EmailStr
+    role: models.WardrobeRole

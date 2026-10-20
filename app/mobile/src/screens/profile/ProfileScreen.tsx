@@ -22,7 +22,7 @@ import { useTheme } from "../../hooks/useTheme";
 import { createProfileStyles } from "../../styles/profile";
 
 export const ProfileScreen: React.FC = () => {
-  const { token, logout } = useAuth();
+  const { token, logout, setUser: setAuthUser } = useAuth();
   const { colors, mode, toggleTheme } = useTheme();
 
   const styles = useMemo(() => createProfileStyles(colors), [colors]);
@@ -138,6 +138,7 @@ export const ProfileScreen: React.FC = () => {
 
       const response = await updateCurrentUser(token, payload);
       setUser(response.user);
+      setAuthUser(response.user);
       setEditing(false);
     } catch (err) {
       console.log("Failed to update user:", err);
