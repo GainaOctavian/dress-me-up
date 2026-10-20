@@ -12,6 +12,7 @@ class CreateItem(BaseModel):
     categories: List[models.ItemCategory] = Field(default_factory=list)
     tags: List[str] = Field(default_factory=list)
     colors: List[str] = Field(default_factory=list)
+    image_asset_id: Optional[str] = None  # from POST /images/upload-url
 
 
 class UpdateItem(BaseModel):
@@ -20,3 +21,4 @@ class UpdateItem(BaseModel):
     categories: Optional[List[models.ItemCategory]] = None
     tags: Optional[List[str]] = None
     colors: Optional[List[str]] = None
+    image_asset_id: Optional[str] = None  # replaces the current image

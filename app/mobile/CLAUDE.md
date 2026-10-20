@@ -20,6 +20,7 @@ API base URL comes from `EXPO_PUBLIC_API_URL` (fallback in `src/config/constants
 - `utils/confirm.ts` — `confirmDestructive(title, msg, confirmText)` for deletes/leave. Use it instead of `Alert.alert` with buttons: react-native-web ignores those buttons, so confirms silently never fire on web.
 - Wardrobe stack: list → `WardrobeDetail` → `ItemForm` (edit for the item owner, read-only for other members; `canRemove` shows "Remove from this wardrobe") / `AddExistingItems`. Pushed screens show a themed header with only a back button, so their `SafeAreaView` uses `edges={["bottom","left","right"]}` (no double top inset).
 - `Wardrobe.item_count` is client-only: filled from the list's `item_counts`, and refreshed by the detail screen (`storeWardrobe`) when it loads items. `storeWardrobe` merges, so it keeps client-only fields.
+- Item photos: `api/images.ts` `uploadImage(token, uri, width)` shrinks to 1600px JPEG (`expo-image-manipulator`), asks the API for a presigned POST and uploads straight to storage, returning the `image_asset_id` to send with the item. `ItemFormScreen` uploads right after picking (library, plus camera on native), and Save waits for it. Show images with `expo-image` and `cacheKey: image_asset_id`: the signed URL changes on every fetch. URLs expire after 24h; `WardrobeDetailScreen` refetches once when an image fails to load.
 - `types/` — API shapes. The backend sends `_id`; users go through `normalizeUser` (in `api/users.ts`) so app code uses `user.id`. Wardrobes keep `_id`.
 
 ## E2E testing (Expo web, no phone needed)
@@ -27,6 +28,7 @@ API base URL comes from `EXPO_PUBLIC_API_URL` (fallback in `src/config/constants
 1. Web deps without touching `package.json`: `npm install --no-save react-dom@<react version> react-native-web@0.21`.
 2. An isolated API: a small launcher that imports `app.backend.api.src.main:app`, overrides `get_db` with a `mongomock` DB (patch `Cursor.to_list`), adds `CORSMiddleware(allow_origins=["*"])`, seeds users via `services.user.create_user`, and runs uvicorn on 8001. Never point E2E at the real DB.
 3. `EXPO_PUBLIC_API_URL=http://localhost:8001 npx expo start --web --port 8090`, and drive it in the browser pane. On web, stub `window.confirm` to accept destructive confirms.
+4. Photos: point the launcher's S3 env at the compose SeaweedFS (`S3_ENDPOINT_URL=http://localhost:8333`, dev keys). expo-image-picker's web picker opens its `<input type=file>` with `dispatchEvent(new MouseEvent("click"))`, so stub the OS dialog with a capturing `click` listener on `document` that sets `input.files` (a canvas-generated `File`) and dispatches `change`. Patching `HTMLInputElement.prototype.click` doesn't work.
 
 ## Gotchas
 

@@ -18,6 +18,8 @@ export interface Item {
   tags: string[];
   colors: string[];
   image_asset_id?: string | null;
+  // presigned, valid ~24h; refetch the list if it stops loading
+  image_url?: string | null;
   created_at: string;
 }
 
@@ -26,6 +28,7 @@ export interface ItemPayload {
   categories: ItemCategory[];
   tags: string[];
   colors: string[];
+  image_asset_id?: string; // a freshly uploaded image (api/images.ts)
 }
 
 export interface ItemResponse {

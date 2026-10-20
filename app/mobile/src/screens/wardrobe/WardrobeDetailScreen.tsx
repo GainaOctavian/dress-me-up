@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   View,
   Text,
@@ -99,6 +99,15 @@ export const WardrobeDetailScreen: React.FC<Props> = ({
       void load();
     }, [load])
   );
+
+  // Cached items carry presigned image URLs that expire after ~24h.
+  // The first broken image triggers one fresh fetch per visit.
+  const refetchedImages = useRef(false);
+  const onImageError = () => {
+    if (refetchedImages.current) return;
+    refetchedImages.current = true;
+    void load(true);
+  };
 
   const onRefresh = () => {
     setRefreshing(true);
@@ -398,6 +407,7 @@ export const WardrobeDetailScreen: React.FC<Props> = ({
                 <ItemCard
                   key={item._id}
                   item={item}
+                  onImageError={onImageError}
                   // owner edits; everyone else gets a read-only view
                   onPress={() =>
                     navigation.navigate("ItemForm", {

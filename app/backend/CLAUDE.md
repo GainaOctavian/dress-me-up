@@ -53,6 +53,15 @@ Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` depen
 - Role checks use `require_role(wardrobe, user_id, EDITORS | OWNER_ONLY, action)` from `services/wardrobe.py`; reuse it for outfits.
 - `services/item.py` wraps repository calls with `_db(error, fn, *args)` (→ 424) instead of repeating try/except.
 
+## Images (plan 03)
+
+- Flow: `POST /images/upload-url {mime_type}` creates an `ImageAsset` (status `pending_upload`, key `originals/<owner>/<asset_id>.<ext>`) and returns a presigned POST. The client uploads straight to S3, then sends `image_asset_id` on item create/update. `services/image.claim_uploaded_asset` checks owner + `pending_upload` + that the object exists (`s3.head`), then marks it `ready`. Each asset can be attached once.
+- `common/storage/s3.py` is the only S3 code (shared with the worker). It has two clients: internal for reads/writes, public for signing. The presigned POST pins `Content-Type` and `content-length-range` (10 MB), so S3 enforces both.
+- Responses: items go out as `dto_out.ItemOut` with `image_url`, a presigned GET valid 24h (`processed_s3_key` if set, else `s3_key`). Build them with `item_service.to_out(db, items)` (one asset query per list). Never store URLs.
+- Replacing an item's image or deleting the item deletes the old asset and its objects (`image_service.delete_asset`, best effort).
+- SeaweedFS answers a presigned-POST policy mismatch (wrong content type) with 307 instead of 403, but stores nothing. Too large → 400 `EntityTooLarge`.
+- Known orphans: assets uploaded but never attached (user picked a photo, then cancelled) stay `pending_upload`. The worker sweeper (plan 04) deletes those older than 24h.
+
 ## Access
 
 - Every route except `POST /users/` and `POST /auth/token` needs `AUTH`. `GET /wardrobes/{id}` is members-only (`get_wardrobe_for_member`, 403 otherwise); there's no list-all endpoint for users or wardrobes, and users can only modify/delete themselves via `/users/me`.

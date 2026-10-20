@@ -40,6 +40,21 @@ export const createItemStyles = (colors: ThemeColors) =>
       color: colors.textMuted,
       fontSize: 12,
     },
+    photo: {
+      width: "100%",
+      aspectRatio: 1,
+      borderRadius: 12,
+      backgroundColor: colors.card,
+      alignItems: "center",
+      justifyContent: "center",
+      overflow: "hidden",
+    },
+    uploadOverlay: {
+      position: "absolute", top: 0, right: 0, bottom: 0, left: 0,
+      alignItems: "center",
+      justifyContent: "center",
+      backgroundColor: "rgba(0,0,0,0.35)", // dims the photo in both themes
+    },
     chipWrap: {
       flexDirection: "row",
       flexWrap: "wrap",

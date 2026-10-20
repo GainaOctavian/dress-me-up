@@ -9,3 +9,4 @@ certifi==2025.11.12
 python-dotenv==1.2.1
 pyjwt==2.10.1
 python-multipart==0.0.20
+boto3==1.43.116

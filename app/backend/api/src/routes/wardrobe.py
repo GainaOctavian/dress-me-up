@@ -152,7 +152,7 @@ async def get_wardrobe_items(db: DB, token: AUTH, wardrobe_id: str):
     """Get items in a wardrobe (members only)"""
     current_user_id = auth_token.get_user_id_from_token(token)
     items = item_service.get_wardrobe_items(db, wardrobe_id, current_user_id)
-    return item_dto_out.GetAllItems(items=items)
+    return item_dto_out.GetAllItems(items=item_service.to_out(db, items))
 
 
 @router.put("/{wardrobe_id}/items/{item_id}",
@@ -169,7 +169,7 @@ async def add_item_to_wardrobe(
     item = item_service.add_item_to_wardrobe(
         db, wardrobe_id, item_id, current_user_id
     )
-    return item_dto_out.GetItem(item=item)
+    return item_dto_out.GetItem(item=item_service.to_out(db, [item])[0])
 
 
 @router.delete("/{wardrobe_id}/items/{item_id}",
@@ -186,7 +186,7 @@ async def remove_item_from_wardrobe(
     item = item_service.remove_item_from_wardrobe(
         db, wardrobe_id, item_id, current_user_id
     )
-    return item_dto_out.GetItem(item=item)
+    return item_dto_out.GetItem(item=item_service.to_out(db, [item])[0])
 
 
 @router.post("/{wardrobe_id}/leave", status_code=status.HTTP_204_NO_CONTENT)

@@ -11,6 +11,8 @@ from app.backend.api.src.repositories import (
     wardrobe as wardrobes_repo,
 )
 from app.backend.api.src.services import wardrobe as wardrobe_service
+from app.backend.api.src.services import image as image_service
+from app.backend.api.src.dto.output import item as dto_out
 from app.backend.api.src.services.wardrobe import EDITORS
 
 
@@ -44,6 +46,17 @@ def _require_item_owner(item: models.Item, user_id: str) -> None:
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the item's owner can do this"
         )
+
+
+def to_out(db: Database, items: List[models.Item]) -> List[dto_out.ItemOut]:
+    """Attach presigned image URLs (one asset lookup for the whole list)"""
+    urls = image_service.image_urls(
+        db, [i.image_asset_id for i in items if i.image_asset_id]
+    )
+    return [
+        dto_out.ItemOut(**i.model_dump(), image_url=urls.get(i.image_asset_id))
+        for i in items
+    ]
 
 
 def get_item(db: Database, item_id: str, user_id: str) -> models.Item:
@@ -96,6 +109,8 @@ def create_item(
             wardrobe_service.get_wardrobe_by_id(db, wardrobe_id),
             user_id, EDITORS, "add items"
         )
+    if request.image_asset_id:
+        image_service.claim_uploaded_asset(db, request.image_asset_id, user_id)
     item = models.Item(
         **request.model_dump(exclude={"wardrobe_ids"}),
         owner_id=user_id,
@@ -111,14 +126,21 @@ def update_item(
         user_id: str,
         request: dto_in.UpdateItem
 ) -> models.Item:
-    """Update an item (owner only)"""
-    _require_item_owner(_get_item(db, item_id), user_id)
+    """Update an item (owner only). A new image_asset_id replaces the old
+    image, which is then deleted."""
+    item = _get_item(db, item_id)
+    _require_item_owner(item, user_id)
     update_data = request.model_dump(exclude_unset=True, exclude_none=True)
+    new_image = update_data.get("image_asset_id")
+    if new_image and new_image != item.image_asset_id:
+        image_service.claim_uploaded_asset(db, new_image, user_id)
     if update_data:
         _db(
             f"Error updating item with id {item_id}",
             items_repo.update_item_by_id, db, item_id, update_data
         )
+    if new_image and new_image != item.image_asset_id:
+        image_service.delete_asset(db, item.image_asset_id)
     return _get_item(db, item_id)
 
 
@@ -163,9 +185,11 @@ def remove_item_from_wardrobe(
 
 
 def delete_item(db: Database, item_id: str, user_id: str) -> None:
-    """Delete an item (owner only)"""
-    _require_item_owner(_get_item(db, item_id), user_id)
+    """Delete an item (owner only), and its image"""
+    item = _get_item(db, item_id)
+    _require_item_owner(item, user_id)
     _db(
         f"Error deleting item with id {item_id}",
         items_repo.delete_item_by_id, db, item_id
     )
+    image_service.delete_asset(db, item.image_asset_id)

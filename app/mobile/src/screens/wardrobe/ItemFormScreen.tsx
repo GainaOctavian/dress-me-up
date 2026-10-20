@@ -1,5 +1,7 @@
 import React, { useMemo, useState } from "react";
 import {
+  ActivityIndicator,
+  Platform,
   ScrollView,
   Text,
   TextInput,
@@ -8,6 +10,8 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { Image } from "expo-image";
+import * as ImagePicker from "expo-image-picker";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
@@ -20,6 +24,7 @@ import {
   updateItem,
 } from "../../api/items";
 import { errorMessage } from "../../api/client";
+import { uploadImage } from "../../api/images";
 import { ITEM_CATEGORIES, ItemCategory } from "../../types/item";
 import { Chip } from "../../components/ui/Chip";
 import { confirmDestructive } from "../../utils/confirm";
@@ -52,6 +57,55 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // photo: preview (local file or current image_url) + id of a new upload
+  const [photoUri, setPhotoUri] = useState<string | null>(item?.image_url ?? null);
+  const [newImageId, setNewImageId] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+
+  // Pick → upload right away, so Save only sends the image_asset_id.
+  const pickPhoto = async (source: "library" | "camera") => {
+    if (!token) return;
+    const perm =
+      source === "camera"
+        ? await ImagePicker.requestCameraPermissionsAsync()
+        : await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (!perm.granted) {
+      setError(
+        source === "camera"
+          ? "Camera access is needed to take a photo. Enable it in Settings."
+          : "Photo access is needed to choose a photo. Enable it in Settings."
+      );
+      return;
+    }
+    const options: ImagePicker.ImagePickerOptions = {
+      mediaTypes: ["images"],
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 1,
+    };
+    const result =
+      source === "camera"
+        ? await ImagePicker.launchCameraAsync(options)
+        : await ImagePicker.launchImageLibraryAsync(options);
+    if (result.canceled) return;
+
+    const asset = result.assets[0];
+    const previous = photoUri;
+    setPhotoUri(asset.uri);
+    setUploading(true);
+    setError(null);
+    try {
+      setNewImageId(await uploadImage(token, asset.uri, asset.width));
+    } catch (e) {
+      console.log("Photo upload failed", e);
+      setError(errorMessage(e, "Could not upload the photo. Please try again."));
+      setPhotoUri(previous);
+      setNewImageId(null);
+    } finally {
+      setUploading(false);
+    }
+  };
+
   const toggleCategory = (c: ItemCategory) =>
     setCategories((prev) =>
       prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
@@ -80,6 +134,7 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
       categories,
       tags: parseList(tags),
       colors: parseList(itemColors),
+      ...(newImageId ? { image_asset_id: newImageId } : {}),
     };
     void run(
       (t) =>
@@ -111,7 +166,7 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
-  const canSave = !busy && name.trim().length > 0;
+  const canSave = !busy && !uploading && name.trim().length > 0;
 
   return (
     <SafeAreaView style={styles.safeArea} edges={["bottom", "left", "right"]}>
@@ -128,6 +183,50 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={[styles.sectionCard, styles.form]}>
+          <View style={itemStyles.photo}>
+            {photoUri ? (
+              <Image
+                source={{ uri: photoUri }}
+                style={{ width: "100%", height: "100%" }}
+                contentFit="cover"
+                accessibilityLabel="Item photo"
+              />
+            ) : (
+              <Text style={itemStyles.empty}>
+                {editable ? "No photo yet" : "No photo"}
+              </Text>
+            )}
+            {uploading && (
+              <View style={itemStyles.uploadOverlay}>
+                <ActivityIndicator color={colors.buttonTextOnPrimary} />
+              </View>
+            )}
+          </View>
+
+          {editable && (
+            <View style={styles.buttonRow}>
+              <TouchableOpacity
+                onPress={() => pickPhoto("library")}
+                disabled={uploading || busy}
+                style={[styles.secondaryButton, { flex: 1 }]}
+              >
+                <Text style={styles.secondaryButtonText}>
+                  {photoUri ? "Change photo" : "Choose photo"}
+                </Text>
+              </TouchableOpacity>
+              {/* no camera in the browser */}
+              {Platform.OS !== "web" && (
+                <TouchableOpacity
+                  onPress={() => pickPhoto("camera")}
+                  disabled={uploading || busy}
+                  style={[styles.secondaryButton, { flex: 1 }]}
+                >
+                  <Text style={styles.secondaryButtonText}>Take photo</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )}
+
           <Text style={styles.metaLabel}>Name</Text>
           <TextInput
             value={name}
@@ -188,7 +287,7 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
               ]}
             >
               <Text style={styles.primaryButtonText}>
-                {busy ? "Saving…" : "Save"}
+                {uploading ? "Uploading photo…" : busy ? "Saving…" : "Save"}
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
