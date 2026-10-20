@@ -13,7 +13,7 @@ const OutfitsScreen: React.FC = () => {
       <View style={styles.container}>
         <Text style={styles.title}>Outfits</Text>
         <Text style={styles.text}>
-          Aici vei avea generarea de outfit-uri și lista cu cele salvate.
+          Outfit generation and your saved outfits will live here.
         </Text>
       </View>
     </SafeAreaView>

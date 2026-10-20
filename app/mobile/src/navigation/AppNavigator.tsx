@@ -4,7 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
-import WardrobeScreen from "../screens/wardrobe/WardrobeScreen";
+import { WardrobeNavigator } from "./WardrobeNavigator";
 import OutfitsScreen from "../screens/outfits/OutfitsScreen";
 import SocialFeedScreen from "../screens/social/SocialFeedScreen";
 import { useTheme } from "../hooks/useTheme";
@@ -40,7 +40,7 @@ export const AppNavigator = () => {
         },
       })}
     >
-      <Tab.Screen name="Wardrobe" component={WardrobeScreen} />
+      <Tab.Screen name="Wardrobe" component={WardrobeNavigator} />
       <Tab.Screen name="Outfits" component={OutfitsScreen} />
       <Tab.Screen name="Social" component={SocialFeedScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />

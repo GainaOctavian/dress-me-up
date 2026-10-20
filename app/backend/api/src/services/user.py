@@ -1,5 +1,3 @@
-from typing import List
-
 from starlette import status
 from fastapi.exceptions import HTTPException
 from pymongo.synchronous.database import Database
@@ -10,21 +8,6 @@ from app.backend.api.src.dto.input import user as dto_in
 from app.backend.api.src.repositories import (
     user as users_repo,
 )
-
-
-def get_users(db: Database) -> List[models.User]:
-    """Get all users"""
-    try:
-        users_data = users_repo.find_all_users(db)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_424_FAILED_DEPENDENCY,
-            detail=f"Error retrieving users: {str(e)}"
-        )
-
-    users = [models.User(**user) for user in users_data]
-
-    return users
 
 
 def get_user_by_id(db: Database, user_id: str) -> models.User:

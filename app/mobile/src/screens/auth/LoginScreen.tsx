@@ -19,12 +19,12 @@ export default function LoginScreen({ navigation }: Props) {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail || !password) {
-      setError("Te rog completează emailul și parola.");
+      setError("Please enter your email and password.");
       return false;
     }
 
     if (!trimmedEmail.includes("@")) {
-      setError("Te rog introdu un email valid.");
+      setError("Please enter a valid email.");
       return false;
     }
 
@@ -40,10 +40,10 @@ export default function LoginScreen({ navigation }: Props) {
 
     try {
       await login(email.trim(), password);
-      // RootNavigation se ocupă de redirect spre AppNavigator
+      // RootNavigation handles the redirect to AppNavigator
     } catch (err) {
       console.log("Login exception:", err);
-      setError("Autentificarea a eșuat. Verifică datele și încearcă din nou.");
+      setError("Sign in failed. Check your details and try again.");
     } finally {
       setLoading(false);
     }

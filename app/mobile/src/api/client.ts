@@ -1,6 +1,13 @@
 import { API_BASE_URL } from "../config/constants";
 
+// Set by AuthContext: any 401 (e.g. expired token) logs the user out.
+let onUnauthorized: (() => void) | null = null;
+export const setUnauthorizedHandler = (handler: (() => void) | null) => {
+  onUnauthorized = handler;
+};
+
 async function handleResponse<T>(response: Response): Promise<T> {
+  if (response.status === 401) onUnauthorized?.();
   if (!response.ok) {
     const text = await response.text();
     console.log("API error:", response.status, text);
@@ -70,6 +77,13 @@ export const apiClient = {
       headers: { Authorization: `Bearer ${token}` },
     }),
 
+  postJsonWithAuth: <T>(path: string, token: string, body?: unknown) =>
+    requestJson<T>(path, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}` },
+      body: body ? JSON.stringify(body) : undefined,
+    }),
+
   postJson: <T>(path: string, body?: unknown) =>
     requestJson<T>(path, {
       method: "POST",
@@ -88,3 +102,14 @@ export const apiClient = {
   postForm: <T>(path: string, form: URLSearchParams) =>
     requestForm<T>(path, form),
 };
+
+// Errors are thrown as Error(responseText); FastAPI sends {"detail": "..."}.
+// Returns that detail when it's a plain message, else the fallback.
+export function errorMessage(e: unknown, fallback: string): string {
+  try {
+    const detail = JSON.parse((e as Error).message).detail;
+    return typeof detail === "string" ? detail : fallback;
+  } catch {
+    return fallback;
+  }
+}

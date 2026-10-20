@@ -19,22 +19,22 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
     const trimmedEmail = email.trim();
 
     if (!trimmedEmail || !password || !confirmPassword) {
-      setError("Te rog completează toate câmpurile obligatorii.");
+      setError("Please fill in all required fields.");
       return false;
     }
 
     if (!trimmedEmail.includes("@")) {
-      setError("Te rog introdu un email valid.");
+      setError("Please enter a valid email.");
       return false;
     }
 
     if (password !== confirmPassword) {
-      setError("Parolele nu coincid.");
+      setError("Passwords do not match.");
       return false;
     }
 
     if (password.length < 6) {
-      setError("Parola trebuie să aibă minim 6 caractere.");
+      setError("Password must be at least 6 characters.");
       return false;
     }
 
@@ -59,7 +59,7 @@ export const RegisterScreen: React.FC<Props> = ({ navigation }) => {
       navigation.navigate("Login");
     } catch (err) {
       console.log("Register exception:", err);
-      setError("Înregistrarea a eșuat. Verifică datele și încearcă din nou.");
+      setError("Sign up failed. Check your details and try again.");
     } finally {
       setLoading(false);
     }
