@@ -30,6 +30,14 @@ def find_wardrobes_by_user(
     return collection.find(query).to_list()
 
 
+def count_wardrobes_with_member(db: Database, wardrobe_ids: list, user_id: str):
+    """How many of wardrobe_ids the user has any role in"""
+    collection = db.get_collection(models.Wardrobe.COLLECTION_NAME)
+    return collection.count_documents(
+        {"_id": {"$in": wardrobe_ids}, f"roles.{user_id}": {"$exists": True}}
+    )
+
+
 def insert_wardrobe(db: Database, wardrobe: models.Wardrobe):
     collection = db.get_collection(models.Wardrobe.COLLECTION_NAME)
     data = wardrobe.model_dump(by_alias=True)

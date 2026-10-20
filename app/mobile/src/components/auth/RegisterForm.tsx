@@ -46,7 +46,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.box}>
-        <Text style={styles.title}>Creează un cont</Text>
+        <Text style={styles.title}>Create an account</Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -62,7 +62,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         />
 
         <TextInput
-          placeholder="Nume (opțional)"
+          placeholder="Name (optional)"
           placeholderTextColor={colors.textMuted}
           style={styles.input}
           value={name}
@@ -70,7 +70,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         />
 
         <TextInput
-          placeholder="Parola"
+          placeholder="Password"
           placeholderTextColor={colors.textMuted}
           secureTextEntry
           style={styles.input}
@@ -79,7 +79,7 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
         />
 
         <TextInput
-          placeholder="Confirmă parola"
+          placeholder="Confirm password"
           placeholderTextColor={colors.textMuted}
           secureTextEntry
           style={styles.input}
@@ -95,13 +95,13 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
           {loading ? (
             <ActivityIndicator color={colors.buttonTextOnPrimary} />
           ) : (
-            <Text style={styles.buttonText}>Înregistrează-te</Text>
+            <Text style={styles.buttonText}>Sign up</Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={onSwitchToLogin}>
           <Text style={styles.footerText}>
-            Ai deja cont? <Text style={styles.link}>Conectează-te</Text>
+            Already have an account? <Text style={styles.link}>Sign in</Text>
           </Text>
         </TouchableOpacity>
       </View>

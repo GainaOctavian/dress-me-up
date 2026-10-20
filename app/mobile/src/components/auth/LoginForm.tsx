@@ -39,7 +39,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
   return (
     <View style={styles.container}>
       <View style={styles.box}>
-        <Text style={styles.title}>Conectează-te</Text>
+        <Text style={styles.title}>Sign in</Text>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
@@ -55,7 +55,7 @@ const LoginForm: React.FC<LoginFormProps> = ({
         />
 
         <TextInput
-          placeholder="Parola"
+          placeholder="Password"
           placeholderTextColor={colors.textMuted}
           secureTextEntry
           style={styles.input}
@@ -71,13 +71,13 @@ const LoginForm: React.FC<LoginFormProps> = ({
           {loading ? (
             <ActivityIndicator color={colors.buttonTextOnPrimary} />
           ) : (
-            <Text style={styles.buttonText}>Autentifică-te</Text>
+            <Text style={styles.buttonText}>Sign in</Text>
           )}
         </TouchableOpacity>
 
         <TouchableOpacity onPress={onSwitchToRegister}>
           <Text style={styles.footerText}>
-            Nu ai cont? <Text style={styles.link}>Înregistrează-te</Text>
+            Don't have an account? <Text style={styles.link}>Sign up</Text>
           </Text>
         </TouchableOpacity>
       </View>

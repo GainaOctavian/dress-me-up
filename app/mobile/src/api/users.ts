@@ -7,7 +7,7 @@ import {
   User,
 } from "../types/user";
 
-// Backend serializează id-ul ca "_id"; în app folosim mereu user.id.
+// Backend serializes the id as "_id"; app code always uses user.id.
 export const normalizeUser = (raw: User): User => ({
   ...raw,
   id: raw.id ?? raw._id,
@@ -24,7 +24,7 @@ export async function getCurrentUser(token: string): Promise<GetUser> {
   return { user: normalizeUser(res.user) };
 }
 
-// GET /users/{user_id} cu cache în AsyncStorage
+// GET /users/{user_id}, cached in AsyncStorage
 export const getUserById = (
   token: string,
   userId: string,
@@ -39,7 +39,7 @@ export const getUserById = (
     options?.forceRefresh
   );
 
-// PUT /users/me — AuthContext.setUser persistă userul curent
+// PUT /users/me — AuthContext.setUser persists the current user
 export async function updateCurrentUser(
   token: string,
   payload: UpdateUser
@@ -51,5 +51,5 @@ export async function updateCurrentUser(
 // DELETE /users/me
 export async function deleteCurrentUser(token: string): Promise<void> {
   await apiClient.deleteWithAuth<void>("/users/me", token);
-  // auth context va curăța storage-ul
+  // AuthContext.logout clears storage
 }

@@ -13,7 +13,7 @@ const SocialFeedScreen: React.FC = () => {
       <View style={styles.container}>
         <Text style={styles.title}>Social Feed</Text>
         <Text style={styles.text}>
-          Aici o să vezi postări de la prieteni și outfit-uri share-uite.
+          Posts from friends and shared outfits will show up here.
         </Text>
       </View>
     </SafeAreaView>

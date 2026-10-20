@@ -6,8 +6,10 @@ from app.backend.common.db.db import DB
 from app.backend.api.src.auth import auth_token
 from app.backend.api.src.auth.auth_token import AUTH
 from app.backend.api.src.services import wardrobe as service
+from app.backend.api.src.services import item as item_service
 from app.backend.api.src.dto.input import wardrobe as dto_in
 from app.backend.api.src.dto.output import wardrobe as dto_out
+from app.backend.api.src.dto.output import item as item_dto_out
 
 router = APIRouter(prefix="/api/v1/wardrobes", tags=["wardrobes"])
 
@@ -132,6 +134,50 @@ async def remove_user_role_from_wardrobe(
         db, wardrobe_id, current_user_id, member_id
     )
     return dto_out.GetWardrobe(wardrobe=wardrobe)
+
+
+@router.get("/{wardrobe_id}/items",
+            status_code=status.HTTP_200_OK,
+            response_model=item_dto_out.GetAllItems)
+async def get_wardrobe_items(db: DB, token: AUTH, wardrobe_id: str):
+    """Get items in a wardrobe (members only)"""
+    current_user_id = auth_token.get_user_id_from_token(token)
+    items = item_service.get_wardrobe_items(db, wardrobe_id, current_user_id)
+    return item_dto_out.GetAllItems(items=items)
+
+
+@router.put("/{wardrobe_id}/items/{item_id}",
+            status_code=status.HTTP_200_OK,
+            response_model=item_dto_out.GetItem)
+async def add_item_to_wardrobe(
+        db: DB,
+        token: AUTH,
+        wardrobe_id: str,
+        item_id: str
+):
+    """Add one of your items to a wardrobe (editor or owner)"""
+    current_user_id = auth_token.get_user_id_from_token(token)
+    item = item_service.add_item_to_wardrobe(
+        db, wardrobe_id, item_id, current_user_id
+    )
+    return item_dto_out.GetItem(item=item)
+
+
+@router.delete("/{wardrobe_id}/items/{item_id}",
+               status_code=status.HTTP_200_OK,
+               response_model=item_dto_out.GetItem)
+async def remove_item_from_wardrobe(
+        db: DB,
+        token: AUTH,
+        wardrobe_id: str,
+        item_id: str
+):
+    """Remove an item from a wardrobe; the item itself is kept"""
+    current_user_id = auth_token.get_user_id_from_token(token)
+    item = item_service.remove_item_from_wardrobe(
+        db, wardrobe_id, item_id, current_user_id
+    )
+    return item_dto_out.GetItem(item=item)
 
 
 @router.delete("/{wardrobe_id}", status_code=status.HTTP_204_NO_CONTENT)

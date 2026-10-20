@@ -8,8 +8,26 @@ from app.backend.common.db import models
 from app.backend.api.src.dto.input import wardrobe as dto_in
 from app.backend.api.src.repositories import (
     wardrobe as wardrobes_repo,
-    user as users_repo
+    user as users_repo,
+    item as items_repo
 )
+
+OWNER_ONLY = {models.WardrobeRole.OWNER}
+EDITORS = {models.WardrobeRole.OWNER, models.WardrobeRole.EDITOR}
+
+
+def require_role(
+        wardrobe: models.Wardrobe,
+        user_id: str,
+        allowed: set,
+        action: str = "do this"
+) -> None:
+    """Raise 403 unless user_id has one of the allowed roles in the wardrobe"""
+    if wardrobe.roles.get(user_id) not in allowed:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"You don't have permission to {action} in this wardrobe"
+        )
 
 
 def get_wardrobe_by_id(db: Database, wardrobe_id: str) -> models.Wardrobe:
@@ -160,15 +178,6 @@ def update_wardrobe(
     return get_wardrobe_by_id(db, wardrobe_id)
 
 
-def _require_owner(wardrobe: models.Wardrobe, user_id: str) -> None:
-    """Raise 403 unless user_id is an OWNER of the wardrobe"""
-    if wardrobe.roles.get(user_id) != models.WardrobeRole.OWNER:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only the owner can modify roles"
-        )
-
-
 def _set_member_role(
         db: Database,
         wardrobe_id: str,
@@ -178,7 +187,10 @@ def _set_member_role(
 ) -> models.Wardrobe:
     """Set (role) or remove (role=None) a member's role. Requester must be OWNER
     and cannot change their own role, so a wardrobe always keeps its owner."""
-    _require_owner(get_wardrobe_by_id(db, wardrobe_id), requester_id)
+    require_role(
+        get_wardrobe_by_id(db, wardrobe_id), requester_id, OWNER_ONLY,
+        "modify roles"
+    )
     if member_id == requester_id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -255,6 +267,8 @@ def delete_wardrobe(db: Database, wardrobe_id: str, user_id: str) -> None:
         )
     try:
         wardrobes_repo.delete_wardrobe_by_id(db, wardrobe_id)
+        # items survive their wardrobe; just drop the reference
+        items_repo.pull_wardrobe_from_items(db, wardrobe_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_424_FAILED_DEPENDENCY,

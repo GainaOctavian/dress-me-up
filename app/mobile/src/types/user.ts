@@ -1,6 +1,6 @@
 export interface User {
-  id?: string;           // dacă backend-ul folosește "id"
-  _id?: string;          // dacă la tine în Mongo e _id
+  id?: string;           // set by normalizeUser (api/users.ts)
+  _id?: string;          // what the backend actually sends
   email: string;
   name?: string | null;
   private_profile: boolean;

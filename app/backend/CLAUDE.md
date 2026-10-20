@@ -34,6 +34,13 @@ Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` depen
 - Role changes go through `_set_member_role` in `services/wardrobe.py` (owner check, plus a guard so the owner can't change their own role and leave the wardrobe without an owner).
 - Route order matters in `routes/wardrobe.py`: the `/user/me...` routes have more path segments than `/{wardrobe_id}`, so they don't collide. Keep new single-segment routes above `/{wardrobe_id}`.
 
+## Items
+
+- `Item.wardrobe_ids` is many-to-many: an item can be in several wardrobes. Deleting a wardrobe `$pull`s its id from items (`pull_wardrobe_from_items`); it never deletes items.
+- Rules in `services/item.py`: read = item owner or member of any of its wardrobes. Update/delete = item owner. Add to wardrobe = editor+ **and** item owner. Remove from wardrobe = editor+ or item owner.
+- Role checks use `require_role(wardrobe, user_id, EDITORS | OWNER_ONLY, action)` from `services/wardrobe.py`; reuse it for outfits.
+- `services/item.py` wraps repository calls with `_db(error, fn, *args)` (→ 424) instead of repeating try/except.
+
 ## Access
 
 - Every route except `POST /users/` and `POST /auth/token` needs `AUTH`. `GET /wardrobes/{id}` is members-only (`get_wardrobe_for_member`, 403 otherwise); there's no list-all endpoint for users or wardrobes, and users can only modify/delete themselves via `/users/me`.

@@ -1,18 +1,21 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   View,
   Text,
   ActivityIndicator,
+  RefreshControl,
   ScrollView,
   TextInput,
   TouchableOpacity,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
+import { useFocusEffect } from "@react-navigation/native";
 
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
 import { createWardrobeStyles } from "../../styles/wardrobe";
+import { createItemStyles } from "../../styles/item";
 import {
   getWardrobeById,
   updateWardrobe,
@@ -20,30 +23,30 @@ import {
   removeUserFromWardrobe,
 } from "../../api/wardrobes";
 import { getUserById } from "../../api/users";
+import { getWardrobeItems } from "../../api/items";
+import { errorMessage } from "../../api/client";
 import { Wardrobe, WardrobeRole } from "../../types/wardrobe";
+import { Item } from "../../types/item";
+import { ItemCard } from "../../components/item/ItemCard";
 import { WardrobeStackParamList } from "../../navigation/WardrobeNavigator";
 
 type Props = NativeStackScreenProps<WardrobeStackParamList, "WardrobeDetail">;
 
 const ROLES: WardrobeRole[] = ["viewer", "editor", "owner"];
 
-// apiClient throws Error(responseText); FastAPI sends {"detail": "..."}
-const errorDetail = (e: unknown, fallback: string): string => {
-  try {
-    const detail = JSON.parse((e as Error).message).detail;
-    return typeof detail === "string" ? detail : fallback;
-  } catch {
-    return fallback;
-  }
-};
-
-export const WardrobeDetailScreen: React.FC<Props> = ({ route }) => {
+export const WardrobeDetailScreen: React.FC<Props> = ({
+  route,
+  navigation,
+}) => {
   const { wardrobeId } = route.params;
   const { token, user: authUser } = useAuth();
   const { colors } = useTheme();
   const styles = useMemo(() => createWardrobeStyles(colors), [colors]);
+  const itemStyles = useMemo(() => createItemStyles(colors), [colors]);
 
   const [wardrobe, setWardrobe] = useState<Wardrobe | null>(null);
+  const [items, setItems] = useState<Item[]>([]);
+  const [refreshing, setRefreshing] = useState(false);
   const [memberNames, setMemberNames] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -56,16 +59,38 @@ export const WardrobeDetailScreen: React.FC<Props> = ({ route }) => {
   const [newMemberEmail, setNewMemberEmail] = useState("");
   const [newMemberRole, setNewMemberRole] = useState<WardrobeRole>("viewer");
 
-  useEffect(() => {
-    if (!token) return;
-    getWardrobeById(token, wardrobeId)
-      .then(setWardrobe)
-      .catch((e) => {
+  const load = useCallback(
+    async (forceRefresh = false) => {
+      if (!token) return;
+      try {
+        const [w, its] = await Promise.all([
+          getWardrobeById(token, wardrobeId, { forceRefresh }),
+          getWardrobeItems(token, wardrobeId, { forceRefresh }),
+        ]);
+        setWardrobe(w);
+        setItems(its);
+      } catch (e) {
         console.log("Failed to load wardrobe detail", e);
         setError("Could not load wardrobe. Please try again.");
-      })
-      .finally(() => setLoading(false));
-  }, [token, wardrobeId]);
+      } finally {
+        setLoading(false);
+        setRefreshing(false);
+      }
+    },
+    [token, wardrobeId]
+  );
+
+  // Cache-first, so returning from ItemForm shows its changes without a GET.
+  useFocusEffect(
+    useCallback(() => {
+      void load();
+    }, [load])
+  );
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    void load(true);
+  };
 
   // Resolve member names; getUserById is cached, so re-running after
   // each membership change only hits the API for new members.
@@ -93,7 +118,7 @@ export const WardrobeDetailScreen: React.FC<Props> = ({ route }) => {
       return true;
     } catch (e) {
       console.log(fallbackError, e);
-      setError(errorDetail(e, fallbackError));
+      setError(errorMessage(e, fallbackError));
       return false;
     } finally {
       setBusy(false);
@@ -122,6 +147,7 @@ export const WardrobeDetailScreen: React.FC<Props> = ({ route }) => {
 
   const myRole = authUser?.id ? wardrobe.roles[authUser.id] : undefined;
   const isOwner = myRole === "owner";
+  const canEditItems = myRole === "owner" || myRole === "editor";
   const displayName = (id: string) =>
     id === authUser?.id ? "You" : memberNames[id] ?? "…";
 
@@ -171,6 +197,13 @@ export const WardrobeDetailScreen: React.FC<Props> = ({ route }) => {
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primarySoft}
+          />
+        }
       >
         <View style={styles.header}>
           <Text style={styles.title}>{wardrobe.name}</Text>
@@ -263,6 +296,43 @@ export const WardrobeDetailScreen: React.FC<Props> = ({ route }) => {
                 </TouchableOpacity>
               )}
             </>
+          )}
+        </View>
+
+        {/* ITEMS */}
+        <View style={styles.sectionCard}>
+          <Text style={styles.sectionTitle}>Items ({items.length})</Text>
+
+          {items.length === 0 ? (
+            <Text style={itemStyles.empty}>No items in this wardrobe yet.</Text>
+          ) : (
+            <View style={itemStyles.grid}>
+              {items.map((item) => (
+                <ItemCard
+                  key={item._id}
+                  item={item}
+                  // only the item's owner can edit it (backend rule)
+                  onPress={
+                    item.owner_id === authUser?.id
+                      ? () =>
+                          navigation.navigate("ItemForm", {
+                            wardrobeId,
+                            item,
+                          })
+                      : undefined
+                  }
+                />
+              ))}
+            </View>
+          )}
+
+          {canEditItems && (
+            <TouchableOpacity
+              onPress={() => navigation.navigate("ItemForm", { wardrobeId })}
+              style={[styles.primaryButton, { marginTop: 16 }]}
+            >
+              <Text style={styles.primaryButtonText}>Add item</Text>
+            </TouchableOpacity>
           )}
         </View>
 

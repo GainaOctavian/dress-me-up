@@ -246,3 +246,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# Claude planning docs (local only)
+docs/claude-plans/

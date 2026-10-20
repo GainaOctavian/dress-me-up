@@ -55,7 +55,7 @@ export const ProfileScreen: React.FC = () => {
       setIsPrivate(response.user.private_profile);
     } catch (err) {
       console.log("Failed to load current user:", err);
-      setError("Nu am putut încărca datele profilului.");
+      setError("Could not load your profile.");
     } finally {
       setLoading(false);
     }
@@ -72,7 +72,7 @@ export const ProfileScreen: React.FC = () => {
       setIsPrivate(response.user.private_profile);
     } catch (err) {
       console.log("Failed to refresh current user:", err);
-      setError("Eroare la refresh.");
+      setError("Could not refresh your profile.");
     } finally {
       setRefreshing(false);
     }
@@ -97,21 +97,21 @@ export const ProfileScreen: React.FC = () => {
     const e = email.trim();
 
     if (!e) {
-      setError("Email-ul nu poate fi gol.");
+      setError("Email cannot be empty.");
       return false;
     }
     if (!e.includes("@")) {
-      setError("Te rog introdu un email valid.");
+      setError("Please enter a valid email.");
       return false;
     }
 
     if (password || passwordConfirm) {
       if (password.length < 6) {
-        setError("Parola trebuie să aibă cel puțin 6 caractere.");
+        setError("Password must be at least 6 characters.");
         return false;
       }
       if (password !== passwordConfirm) {
-        setError("Parolele nu coincid.");
+        setError("Passwords do not match.");
         return false;
       }
     }
@@ -142,7 +142,7 @@ export const ProfileScreen: React.FC = () => {
       setEditing(false);
     } catch (err) {
       console.log("Failed to update user:", err);
-      setError("Nu am putut salva modificările. Încearcă din nou.");
+      setError("Could not save your changes. Please try again.");
     } finally {
       setSaving(false);
     }
@@ -164,12 +164,12 @@ export const ProfileScreen: React.FC = () => {
 
   const handleDelete = () => {
     Alert.alert(
-      "Ștergere cont",
-      "Ești sigur că vrei să-ți ștergi contul? Acțiunea este permanentă.",
+      "Delete account",
+      "Are you sure you want to delete your account? This cannot be undone.",
       [
-        { text: "Anulează", style: "cancel" },
+        { text: "Cancel", style: "cancel" },
         {
-          text: "Șterge",
+          text: "Delete",
           style: "destructive",
           onPress: async () => {
             if (!token) return;
@@ -179,8 +179,8 @@ export const ProfileScreen: React.FC = () => {
             } catch (err) {
               console.log("Failed to delete user:", err);
               Alert.alert(
-                "Eroare",
-                "Nu am putut șterge contul. Te rog încearcă din nou."
+                "Error",
+                "Could not delete your account. Please try again."
               );
             }
           },
@@ -213,17 +213,17 @@ export const ProfileScreen: React.FC = () => {
         }
       >
         <View style={styles.header}>
-          <Text style={styles.title}>Bine ai venit în DressMeUp :3</Text>
+          <Text style={styles.title}>Welcome to DressMeUp :3</Text>
           <Text style={styles.subtitle}>
-            Asta e landing page-ul după login. De aici intri în garderobă,
-            prieteni și outfit-uri generate.
+            Your home after sign in. From here you get to your wardrobe,
+            friends and generated outfits.
           </Text>
         </View>
 
         {/* Theme toggle */}
         <View style={styles.themeRow}>
           <View>
-            <Text style={styles.themeTitle}>Tema aplicației</Text>
+            <Text style={styles.themeTitle}>App theme</Text>
             <Text style={styles.themeSubtitle}>
               {mode === "dark" ? "Dark mode" : "Light mode"}
             </Text>
@@ -240,10 +240,10 @@ export const ProfileScreen: React.FC = () => {
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>
-            <Text style={styles.cardTitle}>Profil</Text>
+            <Text style={styles.cardTitle}>Profile</Text>
             {!editing && (
               <TouchableOpacity onPress={startEdit}>
-                <Text style={styles.editLink}>Editează</Text>
+                <Text style={styles.editLink}>Edit</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -262,18 +262,18 @@ export const ProfileScreen: React.FC = () => {
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.label}>Nume</Text>
+                <Text style={styles.label}>Name</Text>
                 <TextInput
                   style={styles.input}
                   value={name}
                   onChangeText={setName}
-                  placeholder="Nume afișat"
+                  placeholder="Display name"
                   placeholderTextColor={colors.textMuted}
                 />
               </View>
 
               <View style={styles.fieldRow}>
-                <Text style={styles.label}>Profil privat</Text>
+                <Text style={styles.label}>Private profile</Text>
                 <Switch
                   value={isPrivate}
                   onValueChange={setIsPrivate}
@@ -286,19 +286,19 @@ export const ProfileScreen: React.FC = () => {
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.label}>Parolă nouă (opțional)</Text>
+                <Text style={styles.label}>New password (optional)</Text>
                 <TextInput
                   style={styles.input}
                   value={password}
                   onChangeText={setPassword}
                   secureTextEntry
-                  placeholder="Lasă gol dacă nu vrei să o schimbi"
+                  placeholder="Leave empty to keep the current one"
                   placeholderTextColor={colors.textMuted}
                 />
               </View>
 
               <View style={styles.field}>
-                <Text style={styles.label}>Confirmare parolă</Text>
+                <Text style={styles.label}>Confirm password</Text>
                 <TextInput
                   style={styles.input}
                   value={passwordConfirm}
@@ -313,7 +313,7 @@ export const ProfileScreen: React.FC = () => {
                   onPress={handleCancelEdit}
                   disabled={saving}
                 >
-                  <Text style={styles.secondaryText}>Renunță</Text>
+                  <Text style={styles.secondaryText}>Cancel</Text>
                 </TouchableOpacity>
 
                 <TouchableOpacity
@@ -324,7 +324,7 @@ export const ProfileScreen: React.FC = () => {
                   {saving ? (
                     <ActivityIndicator color={colors.buttonTextOnPrimary} />
                   ) : (
-                    <Text style={styles.primaryText}>Salvează</Text>
+                    <Text style={styles.primaryText}>Save</Text>
                   )}
                 </TouchableOpacity>
               </View>
@@ -337,19 +337,19 @@ export const ProfileScreen: React.FC = () => {
               </View>
 
               <View style={styles.row}>
-                <Text style={styles.label}>Nume</Text>
+                <Text style={styles.label}>Name</Text>
                 <Text style={styles.value}>{user?.name ?? "-"}</Text>
               </View>
 
               <View style={styles.row}>
-                <Text style={styles.label}>Profil privat</Text>
+                <Text style={styles.label}>Private profile</Text>
                 <Text style={styles.value}>
-                  {user?.private_profile ? "Da" : "Nu"}
+                  {user?.private_profile ? "Yes" : "No"}
                 </Text>
               </View>
 
               <View style={styles.row}>
-                <Text style={styles.label}>Prieteni</Text>
+                <Text style={styles.label}>Friends</Text>
                 <Text style={styles.value}>
                   {user?.friend_ids?.length ?? 0}
                 </Text>
@@ -360,7 +360,7 @@ export const ProfileScreen: React.FC = () => {
 
         <View style={styles.actions}>
           <TouchableOpacity style={styles.bigPrimaryButton}>
-            <Text style={styles.bigPrimaryText}>Deschide garderoba</Text>
+            <Text style={styles.bigPrimaryText}>Open wardrobe</Text>
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.secondaryOutline} onPress={logout}>
@@ -368,7 +368,7 @@ export const ProfileScreen: React.FC = () => {
           </TouchableOpacity>
 
           <TouchableOpacity style={styles.dangerButton} onPress={handleDelete}>
-            <Text style={styles.dangerText}>Șterge contul</Text>
+            <Text style={styles.dangerText}>Delete account</Text>
           </TouchableOpacity>
         </View>
       </ScrollView>
