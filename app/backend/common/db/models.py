@@ -1,10 +1,17 @@
 from enum import Enum
 from datetime import datetime, timezone
-from typing import Optional, List, Dict, ClassVar
+from typing import Annotated, Optional, List, Dict, ClassVar
 
-from pydantic import BaseModel, Field, EmailStr
+from pydantic import AfterValidator, BaseModel, Field, EmailStr
 
 from app.backend.common.stringproc.stringproc import generate_id
+
+# Mongo returns naive datetimes (UTC). Mark them UTC so the API sends an
+# explicit offset; otherwise clients read them as local time.
+UtcDatetime = Annotated[
+    datetime,
+    AfterValidator(lambda d: d if d.tzinfo else d.replace(tzinfo=timezone.utc)),
+]
 
 
 class User(BaseModel):
@@ -34,7 +41,7 @@ class Wardrobe(BaseModel):
     name: str
     description: Optional[str] = None
     roles: Dict[str, WardrobeRole]  # Mapping user_ids to role in the wardrobe
-    created_at: datetime = Field(
+    created_at: UtcDatetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
 
@@ -62,7 +69,7 @@ class Item(BaseModel):
     tags: Optional[List[str]] = Field(default_factory=list)
     colors: Optional[List[str]] = Field(default_factory=list)
     image_asset_id: Optional[str] = None
-    created_at: datetime = Field(
+    created_at: UtcDatetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
 
@@ -113,7 +120,7 @@ class Outfit(BaseModel):
     image_asset_id: Optional[str] = None  # preview image
     shared: bool = False  # only shared outfits appear in friends' feed
 
-    created_at: datetime = Field(
+    created_at: UtcDatetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
 
@@ -142,7 +149,7 @@ class ImageAsset(BaseModel):
     width: Optional[int] = None
     height: Optional[int] = None
     metadata: Optional[Dict[str, str]] = Field(default_factory=dict)
-    uploaded_at: datetime = Field(
+    uploaded_at: UtcDatetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )
 

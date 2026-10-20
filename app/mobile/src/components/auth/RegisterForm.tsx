@@ -85,6 +85,8 @@ const RegisterForm: React.FC<RegisterFormProps> = ({
           style={styles.input}
           value={confirmPassword}
           onChangeText={onConfirmPasswordChange}
+          returnKeyType="go"
+          onSubmitEditing={onSubmit}
         />
 
         <TouchableOpacity

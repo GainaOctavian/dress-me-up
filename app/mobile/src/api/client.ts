@@ -1,6 +1,13 @@
 import { API_BASE_URL } from "../config/constants";
 
+// Set by AuthContext: any 401 (e.g. expired token) logs the user out.
+let onUnauthorized: (() => void) | null = null;
+export const setUnauthorizedHandler = (handler: (() => void) | null) => {
+  onUnauthorized = handler;
+};
+
 async function handleResponse<T>(response: Response): Promise<T> {
+  if (response.status === 401) onUnauthorized?.();
   if (!response.ok) {
     const text = await response.text();
     console.log("API error:", response.status, text);

@@ -61,6 +61,8 @@ const LoginForm: React.FC<LoginFormProps> = ({
           style={styles.input}
           value={password}
           onChangeText={onPasswordChange}
+          returnKeyType="go"
+          onSubmitEditing={onSubmit}
         />
 
         <TouchableOpacity

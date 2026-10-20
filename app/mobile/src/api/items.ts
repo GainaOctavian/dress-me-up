@@ -94,3 +94,22 @@ export async function deleteItem(token: string, item: Item): Promise<void> {
     await patchWardrobeItems(wardrobeId, without(item._id));
   }
 }
+
+// Always fresh: only used by the "Add from my items" picker.
+export async function getMyItems(token: string): Promise<Item[]> {
+  return (await apiClient.getWithAuth<ItemListResponse>("/items/me", token))
+    .items;
+}
+
+export async function addItemToWardrobe(
+  token: string,
+  wardrobeId: string,
+  itemId: string
+): Promise<Item> {
+  const { item } = await apiClient.putWithAuth<ItemResponse>(
+    `/wardrobes/${wardrobeId}/items/${itemId}`,
+    token
+  );
+  await patchWardrobeItems(wardrobeId, upsert(item));
+  return item;
+}

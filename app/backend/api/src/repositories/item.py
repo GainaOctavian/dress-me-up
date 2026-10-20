@@ -18,6 +18,11 @@ def find_items_by_wardrobe(db: Database, wardrobe_id: str):
     return collection.find({"wardrobe_ids": wardrobe_id}).to_list()
 
 
+def count_items_in_wardrobe(db: Database, wardrobe_id: str) -> int:
+    collection = db.get_collection(models.Item.COLLECTION_NAME)
+    return collection.count_documents({"wardrobe_ids": wardrobe_id})
+
+
 def insert_item(db: Database, item: models.Item):
     collection = db.get_collection(models.Item.COLLECTION_NAME)
     return collection.insert_one(item.model_dump(by_alias=True))

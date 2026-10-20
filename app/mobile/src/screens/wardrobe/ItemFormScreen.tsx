@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from "react";
 import {
-  Alert,
   ScrollView,
   Text,
   TextInput,
@@ -22,6 +21,8 @@ import {
 } from "../../api/items";
 import { errorMessage } from "../../api/client";
 import { ITEM_CATEGORIES, ItemCategory } from "../../types/item";
+import { Chip } from "../../components/ui/Chip";
+import { confirmDestructive } from "../../utils/confirm";
 import { WardrobeStackParamList } from "../../navigation/WardrobeNavigator";
 
 type Props = NativeStackScreenProps<WardrobeStackParamList, "ItemForm">;
@@ -34,8 +35,10 @@ const parseList = (text: string) =>
     .filter(Boolean);
 
 export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
-  const { wardrobeId, item } = route.params;
-  const { token } = useAuth();
+  const { wardrobeId, item, canRemove = false } = route.params;
+  const { token, user } = useAuth();
+  // Only the item's owner edits it; others (members) see it read-only.
+  const editable = !item || item.owner_id === user?.id;
   const { colors } = useTheme();
   const styles = useMemo(() => createWardrobeStyles(colors), [colors]);
   const itemStyles = useMemo(() => createItemStyles(colors), [colors]);
@@ -94,35 +97,32 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
       "Could not remove item. Please try again."
     );
 
-  const handleDelete = () =>
-    item &&
-    Alert.alert(
+  const handleDelete = async () => {
+    if (!item) return;
+    const ok = await confirmDestructive(
       "Delete item",
-      `Delete "${item.name}" from all wardrobes? This cannot be undone.`,
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () =>
-            void run(
-              (t) => deleteItem(t, item),
-              "Could not delete item. Please try again."
-            ),
-        },
-      ]
+      `Delete "${item.name}" from all wardrobes? This cannot be undone.`
     );
+    if (ok) {
+      void run(
+        (t) => deleteItem(t, item),
+        "Could not delete item. Please try again."
+      );
+    }
+  };
 
   const canSave = !busy && name.trim().length > 0;
 
   return (
-    <SafeAreaView style={styles.safeArea}>
+    <SafeAreaView style={styles.safeArea} edges={["bottom", "left", "right"]}>
       <ScrollView
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <Text style={styles.title}>{item ? "Edit item" : "New item"}</Text>
+          <Text style={styles.title}>
+            {!item ? "New item" : editable ? "Edit item" : item.name}
+          </Text>
         </View>
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
@@ -132,6 +132,7 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
           <TextInput
             value={name}
             onChangeText={setName}
+            editable={editable}
             style={styles.input}
             placeholder="e.g. Blue denim jacket"
             placeholderTextColor={colors.textMuted}
@@ -139,31 +140,22 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
 
           <Text style={styles.metaLabel}>Categories</Text>
           <View style={itemStyles.chipWrap}>
-            {ITEM_CATEGORIES.map((c) => {
-              const selected = categories.includes(c);
-              return (
-                <TouchableOpacity
-                  key={c}
-                  onPress={() => toggleCategory(c)}
-                  style={[styles.chip, !selected && styles.chipInactive]}
-                >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      !selected && styles.chipTextInactive,
-                    ]}
-                  >
-                    {c.toUpperCase()}
-                  </Text>
-                </TouchableOpacity>
-              );
-            })}
+            {/* read-only: show just the item's categories */}
+            {(editable ? ITEM_CATEGORIES : categories).map((c) => (
+              <Chip
+                key={c}
+                label={c.toUpperCase()}
+                selected={categories.includes(c)}
+                onPress={editable ? () => toggleCategory(c) : undefined}
+              />
+            ))}
           </View>
 
           <Text style={styles.metaLabel}>Tags</Text>
           <TextInput
             value={tags}
             onChangeText={setTags}
+            editable={editable}
             style={styles.input}
             placeholder="summer, casual"
             placeholderTextColor={colors.textMuted}
@@ -174,13 +166,17 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
           <TextInput
             value={itemColors}
             onChangeText={setItemColors}
+            editable={editable}
             style={styles.input}
             placeholder="blue, white"
             placeholderTextColor={colors.textMuted}
             autoCapitalize="none"
           />
-          <Text style={itemStyles.hint}>Separate tags and colors with commas.</Text>
+          {editable && (
+            <Text style={itemStyles.hint}>Separate tags and colors with commas.</Text>
+          )}
 
+          {editable && (
           <View style={styles.buttonRow}>
             <TouchableOpacity
               onPress={handleSave}
@@ -203,9 +199,10 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
               <Text style={styles.secondaryButtonText}>Cancel</Text>
             </TouchableOpacity>
           </View>
+          )}
         </View>
 
-        {item && (
+        {item && (editable || canRemove) && (
           <View style={[styles.sectionCard, styles.form]}>
             <TouchableOpacity
               onPress={handleRemoveFromWardrobe}
@@ -216,16 +213,27 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
                 Remove from this wardrobe
               </Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              onPress={handleDelete}
-              disabled={busy}
-              style={styles.secondaryButton}
-            >
-              <Text style={[styles.secondaryButtonText, { color: colors.danger }]}>
-                Delete item
-              </Text>
-            </TouchableOpacity>
+            {editable && (
+              <TouchableOpacity
+                onPress={handleDelete}
+                disabled={busy}
+                style={styles.secondaryButton}
+              >
+                <Text style={[styles.secondaryButtonText, { color: colors.danger }]}>
+                  Delete item
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
+        )}
+
+        {!editable && (
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.secondaryButton}
+          >
+            <Text style={styles.secondaryButtonText}>Back</Text>
+          </TouchableOpacity>
         )}
       </ScrollView>
     </SafeAreaView>

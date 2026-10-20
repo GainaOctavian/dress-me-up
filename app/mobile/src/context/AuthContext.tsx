@@ -9,6 +9,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { login as loginApi } from "../api/auth";
 import { getCurrentUser } from "../api/users";
 import { clearCache } from "../api/cache";
+import { setUnauthorizedHandler } from "../api/client";
 import { User } from "../types/user";
 
 const TOKEN_KEY = "auth:token";
@@ -103,6 +104,11 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     void AsyncStorage.multiRemove([TOKEN_KEY, USER_KEY]);
     void clearCache();
   };
+
+  useEffect(() => {
+    setUnauthorizedHandler(logout);
+    return () => setUnauthorizedHandler(null);
+  }, []);
 
   return (
     <AuthContext.Provider

@@ -10,11 +10,6 @@ def find_wardrobe_by_id(db: Database, wardrobe_id: str):
     return collection.find_one({"_id": wardrobe_id})
 
 
-def find_wardrobes_by_user_id(db: Database, user_id: str):
-    collection = db.get_collection(models.Wardrobe.COLLECTION_NAME)
-    return collection.find({"user_id": user_id}).to_list()
-
-
 def find_wardrobes_by_user(
         db: Database,
         user_id: str,

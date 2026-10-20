@@ -19,6 +19,8 @@ export const WardrobeCard: React.FC<Props> = ({
   const styles = useMemo(() => createWardrobeStyles(colors), [colors]);
 
   const role = currentUserId ? wardrobe.roles[currentUserId] : undefined;
+  const members = Object.keys(wardrobe.roles).length;
+  const plural = (n: number, word: string) => `${n} ${word}${n === 1 ? "" : "s"}`;
 
   return (
     <TouchableOpacity
@@ -35,7 +37,10 @@ export const WardrobeCard: React.FC<Props> = ({
 
       <View style={styles.cardFooter}>
         <Text style={styles.createdAt}>
-          Created: {new Date(wardrobe.created_at).toLocaleDateString()}
+          {wardrobe.item_count !== undefined &&
+            `${plural(wardrobe.item_count, "item")} · `}
+          {plural(members, "member")} ·{" "}
+          {new Date(wardrobe.created_at).toLocaleDateString()}
         </Text>
 
         {role && (

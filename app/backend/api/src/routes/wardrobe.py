@@ -14,14 +14,23 @@ from app.backend.api.src.dto.output import item as item_dto_out
 router = APIRouter(prefix="/api/v1/wardrobes", tags=["wardrobes"])
 
 
+def _list_response(db, wardrobes) -> dto_out.GetAllWardrobesByUser:
+    return dto_out.GetAllWardrobesByUser(
+        wardrobes=wardrobes,
+        item_counts=service.get_item_counts(db, wardrobes),
+    )
+
+
 @router.get("/user/me",
             status_code=status.HTTP_200_OK,
             response_model=dto_out.GetAllWardrobesByUser)
 async def get_owned_wardrobes_by_current_user(db: DB, token: AUTH):
     """Get wardrobes owned by the currently authenticated user"""
     current_user_id = auth_token.get_user_id_from_token(token)
-    wardrobes = service.get_owned_wardrobes_by_user_id(db, current_user_id)
-    return dto_out.GetAllWardrobesByUser(wardrobes=wardrobes)
+    wardrobes = service.get_wardrobes_by_user(
+        db, current_user_id, models.WardrobeRole.OWNER
+    )
+    return _list_response(db, wardrobes)
 
 
 @router.get("/{wardrobe_id}",
@@ -41,7 +50,7 @@ async def get_wardrobes_by_current_user(db: DB, token: AUTH):
     """Get wardrobes for the currently authenticated user by any role"""
     current_user_id = auth_token.get_user_id_from_token(token)
     wardrobes = service.get_wardrobes_by_user(db, current_user_id)
-    return dto_out.GetAllWardrobesByUser(wardrobes=wardrobes)
+    return _list_response(db, wardrobes)
 
 
 @router.get("/user/me/roles/{role}",
@@ -55,7 +64,7 @@ async def get_wardrobes_by_current_user_role(
     """Get wardrobes for the currently authenticated user by role"""
     current_user_id = auth_token.get_user_id_from_token(token)
     wardrobes = service.get_wardrobes_by_user(db, current_user_id, role)
-    return dto_out.GetAllWardrobesByUser(wardrobes=wardrobes)
+    return _list_response(db, wardrobes)
 
 
 @router.post("/",
@@ -178,6 +187,14 @@ async def remove_item_from_wardrobe(
         db, wardrobe_id, item_id, current_user_id
     )
     return item_dto_out.GetItem(item=item)
+
+
+@router.post("/{wardrobe_id}/leave", status_code=status.HTTP_204_NO_CONTENT)
+async def leave_wardrobe(db: DB, token: AUTH, wardrobe_id: str):
+    """Leave a wardrobe (remove your own role)"""
+    current_user_id = auth_token.get_user_id_from_token(token)
+    service.leave_wardrobe(db, wardrobe_id, current_user_id)
+    return None
 
 
 @router.delete("/{wardrobe_id}", status_code=status.HTTP_204_NO_CONTENT)

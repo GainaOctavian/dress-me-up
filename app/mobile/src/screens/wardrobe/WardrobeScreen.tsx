@@ -4,6 +4,7 @@ import {
   FlatList,
   RefreshControl,
   Text,
+  TextInput,
   View,
   TouchableOpacity,
 } from "react-native";
@@ -14,9 +15,15 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
 import { createWardrobeStyles } from "../../styles/wardrobe";
-import { getAllRelatedWardrobes, getOwnedWardrobes } from "../../api/wardrobes";
+import {
+  createWardrobe,
+  getAllRelatedWardrobes,
+  getOwnedWardrobes,
+} from "../../api/wardrobes";
+import { errorMessage } from "../../api/client";
 import { Wardrobe } from "../../types/wardrobe";
 import { WardrobeCard } from "../../components/wardrobe/WardrobeCard";
+import { Chip } from "../../components/ui/Chip";
 import { WardrobeStackParamList } from "../../navigation/WardrobeNavigator";
 
 type Props = NativeStackScreenProps<WardrobeStackParamList, "WardrobeList">;
@@ -38,6 +45,19 @@ const WardrobeScreen: React.FC<Props> = ({ navigation }) => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newDescription, setNewDescription] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const q = query.trim().toLowerCase();
+  const visible = q
+    ? wardrobes.filter((w) =>
+        `${w.name} ${w.description ?? ""}`.toLowerCase().includes(q)
+      )
+    : wardrobes;
 
   const load = useCallback(
     async (forceRefresh = false) => {
@@ -66,6 +86,26 @@ const WardrobeScreen: React.FC<Props> = ({ navigation }) => {
     }, [load])
   );
 
+  const handleCreate = async () => {
+    if (!token) return;
+    setSaving(true);
+    try {
+      const wardrobe = await createWardrobe(token, {
+        name: newName.trim(),
+        description: newDescription.trim() || null,
+      });
+      setCreating(false);
+      setNewName("");
+      setNewDescription("");
+      navigation.navigate("WardrobeDetail", { wardrobeId: wardrobe._id });
+    } catch (e) {
+      console.log("Failed to create wardrobe", e);
+      setError(errorMessage(e, "Could not create wardrobe. Please try again."));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const onRefresh = () => {
     setRefreshing(true);
     void load(true);
@@ -84,8 +124,9 @@ const WardrobeScreen: React.FC<Props> = ({ navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <FlatList
-        data={wardrobes}
+        data={visible}
         keyExtractor={(item) => item._id}
+        keyboardShouldPersistTaps="handled"
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -95,34 +136,79 @@ const WardrobeScreen: React.FC<Props> = ({ navigation }) => {
         }
         contentContainerStyle={[
           styles.listContent,
-          wardrobes.length === 0 && { flexGrow: 1 },
+          visible.length === 0 && { flexGrow: 1 },
         ]}
         ListHeaderComponent={
           <View style={styles.header}>
             <Text style={styles.title}>Your wardrobes</Text>
             <Text style={styles.subtitle}>
-              All wardrobes where you are owner, editor or viewer.
+              {filter === "owner"
+                ? "Wardrobes you own."
+                : "All wardrobes where you are owner, editor or viewer."}
             </Text>
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
             <View style={[styles.chipRow, { marginTop: 12 }]}>
               {FILTERS.map(({ key, label }) => (
-                <TouchableOpacity
+                <Chip
                   key={key}
+                  label={label}
+                  selected={filter === key}
                   onPress={() => setFilter(key)}
-                  style={[styles.chip, filter !== key && styles.chipInactive]}
+                />
+              ))}
+              <TouchableOpacity
+                onPress={() => setCreating((v) => !v)}
+                style={[styles.chip, { marginLeft: "auto" }]}
+              >
+                <Text style={styles.chipText}>
+                  {creating ? "Close" : "+ New"}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {wardrobes.length > 0 && !creating && (
+              <TextInput
+                value={query}
+                onChangeText={setQuery}
+                style={[styles.input, { marginTop: 12 }]}
+                placeholder="Search wardrobes"
+                placeholderTextColor={colors.textMuted}
+                autoCorrect={false}
+              />
+            )}
+
+            {creating && (
+              <View style={[styles.sectionCard, styles.form, { marginTop: 12 }]}>
+                <TextInput
+                  value={newName}
+                  onChangeText={setNewName}
+                  style={styles.input}
+                  placeholder="Wardrobe name"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <TextInput
+                  value={newDescription}
+                  onChangeText={setNewDescription}
+                  multiline
+                  style={[styles.input, styles.inputMultiline]}
+                  placeholder="Description (optional)"
+                  placeholderTextColor={colors.textMuted}
+                />
+                <TouchableOpacity
+                  onPress={handleCreate}
+                  disabled={saving || !newName.trim()}
+                  style={[
+                    styles.primaryButton,
+                    (saving || !newName.trim()) && styles.buttonDisabled,
+                  ]}
                 >
-                  <Text
-                    style={[
-                      styles.chipText,
-                      filter !== key && styles.chipTextInactive,
-                    ]}
-                  >
-                    {label}
+                  <Text style={styles.primaryButtonText}>
+                    {saving ? "Creating…" : "Create wardrobe"}
                   </Text>
                 </TouchableOpacity>
-              ))}
-            </View>
+              </View>
+            )}
           </View>
         }
         renderItem={({ item }) => (
@@ -135,13 +221,26 @@ const WardrobeScreen: React.FC<Props> = ({ navigation }) => {
           />
         )}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyTitle}>No wardrobes yet</Text>
-            <Text style={styles.emptyText}>
-              You are not part of any wardrobe yet. Later you will be able to
-              create or join wardrobes from here.
-            </Text>
-          </View>
+          q ? (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyText}>No wardrobes match "{query}".</Text>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Text style={styles.emptyTitle}>No wardrobes yet</Text>
+              <Text style={styles.emptyText}>
+                Create one, or ask a friend to add you to theirs.
+              </Text>
+              {!creating && (
+                <TouchableOpacity
+                  onPress={() => setCreating(true)}
+                  style={[styles.primaryButton, { marginTop: 16, paddingHorizontal: 24 }]}
+                >
+                  <Text style={styles.primaryButtonText}>Create wardrobe</Text>
+                </TouchableOpacity>
+              )}
+            </View>
+          )
         }
       />
     </SafeAreaView>

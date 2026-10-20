@@ -1,5 +1,5 @@
 from pydantic import BaseModel, EmailStr
-from typing import Optional, Dict
+from typing import Optional
 from app.backend.common.db import models
 
 
@@ -13,7 +13,6 @@ class UpdateWardrobe(BaseModel):
     """DTO for updating wardrobe information"""
     name: Optional[str] = None
     description: Optional[str] = None
-    roles: Optional[Dict[str, models.WardrobeRole]] = None
 
 
 class AddUserToWardrobe(BaseModel):

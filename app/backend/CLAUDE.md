@@ -25,12 +25,17 @@ Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` depen
 ## Models (`common/db/models.py`)
 
 - IDs are uuid4 strings stored as `_id` (`Field(alias="_id")`). Responses serialize by alias, so clients see `_id`.
+- Datetime fields use `UtcDatetime`: pymongo returns naive datetimes, which serialize without an offset and clients read as local time (was 3h off in Romania). Use it for every new `*_at` field.
 - `User.hashed_password` is `exclude=True`: it never leaves the API. `insert_user` writes it explicitly; keep it that way.
 - `Wardrobe.roles: Dict[user_id, WardrobeRole]` is the source of truth for access (`owner`/`editor`/`viewer`). `Wardrobe.user_id` is just the creator.
 
 ## Wardrobe roles: gotchas
 
 - Remove a role with `$unset` (`unset_wardrobe_role`), never `$set` to `None`: a `None` role fails `models.Wardrobe` validation and breaks every read of that wardrobe.
+- `PUT /wardrobes/{id}` only edits name/description; roles change only via the `/roles` endpoints (it used to replace the whole `roles` map and could drop the owner).
+- "My wardrobes" (`GET /user/me`) = wardrobes where the caller has the OWNER role, not `user_id == caller`.
+- `POST /{id}/leave`: any member removes their own role; the last owner gets 400 (a wardrobe never loses its last owner).
+- List responses (`GetAllWardrobesByUser`) also carry `item_counts: {wardrobe_id: n}`, built by `_list_response` in `routes/wardrobe.py`.
 - Role changes go through `_set_member_role` in `services/wardrobe.py` (owner check, plus a guard so the owner can't change their own role and leave the wardrobe without an owner).
 - Route order matters in `routes/wardrobe.py`: the `/user/me...` routes have more path segments than `/{wardrobe_id}`, so they don't collide. Keep new single-segment routes above `/{wardrobe_id}`.
 

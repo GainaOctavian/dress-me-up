@@ -1,4 +1,4 @@
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from starlette import status
 from fastapi.exceptions import HTTPException
@@ -66,25 +66,6 @@ def get_wardrobe_for_member(
     return wardrobe
 
 
-def get_owned_wardrobes_by_user_id(
-        db: Database,
-        user_id: str
-) -> List[models.Wardrobe]:
-    """Get owned wardrobes by user ID"""
-    try:
-        wardrobes_data = wardrobes_repo.find_wardrobes_by_user_id(db, user_id)
-    except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_424_FAILED_DEPENDENCY,
-            detail=f"Error retrieving wardrobes"
-                   f" for user with id {user_id}: {str(e)}"
-        )
-
-    wardrobes = [models.Wardrobe(**wardrobe) for wardrobe in wardrobes_data]
-
-    return wardrobes
-
-
 def get_wardrobes_by_user(
         db: Database,
         user_id: str,
@@ -105,6 +86,48 @@ def get_wardrobes_by_user(
         )
 
     return [models.Wardrobe(**wardrobe) for wardrobe in wardrobes_data]
+
+
+def get_item_counts(
+        db: Database,
+        wardrobes: List[models.Wardrobe]
+) -> Dict[str, int]:
+    """Number of items per wardrobe.
+    ponytail: one count per wardrobe; use an $unwind/$group aggregate
+    if users end up with many wardrobes."""
+    try:
+        return {
+            w.id: items_repo.count_items_in_wardrobe(db, w.id)
+            for w in wardrobes
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_424_FAILED_DEPENDENCY,
+            detail=f"Error counting wardrobe items: {str(e)}"
+        )
+
+
+def leave_wardrobe(db: Database, wardrobe_id: str, user_id: str) -> None:
+    """Remove the caller's own role. The last owner can't leave, so a
+    wardrobe always keeps an owner (they can delete it instead)."""
+    wardrobe = get_wardrobe_for_member(db, wardrobe_id, user_id)
+    owners = [
+        uid for uid, r in wardrobe.roles.items()
+        if r == models.WardrobeRole.OWNER
+    ]
+    if owners == [user_id]:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You're the only owner. Make another member owner"
+                   " or delete the wardrobe instead."
+        )
+    try:
+        wardrobes_repo.unset_wardrobe_role(db, wardrobe_id, user_id)
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_424_FAILED_DEPENDENCY,
+            detail=f"Error leaving wardrobe {wardrobe_id}: {str(e)}"
+        )
 
 
 def create_wardrobe(
@@ -143,32 +166,9 @@ def update_wardrobe(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only the owner can update the wardrobe"
         )
-    if 'roles' in update_data:
-        requested_roles = update_data.pop('roles') or {}
-
-        validated_roles = {}
-        for uid, r in requested_roles.items():
-            # Accept either enum member or raw value; validate against enum
-            try:
-                validated_role = r if isinstance(r, models.WardrobeRole) else models.WardrobeRole(r)
-            except ValueError:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Invalid role '{r}' for user '{uid}'"
-                )
-
-            # Prevent owner from removing/demoting their own OWNER role
-            if uid == user_id and validated_role != models.WardrobeRole.OWNER:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail="Owner cannot remove their OWNER role"
-                )
-
-            validated_roles[uid] = validated_role
-
-        update_data['roles'] = validated_roles
     try:
-        wardrobes_repo.update_wardrobe_by_id(db, wardrobe_id, update_data)
+        if update_data:  # Mongo rejects an empty $set
+            wardrobes_repo.update_wardrobe_by_id(db, wardrobe_id, update_data)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_424_FAILED_DEPENDENCY,

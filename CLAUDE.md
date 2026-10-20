@@ -17,4 +17,5 @@ Wardrobe / outfit app: FastAPI + MongoDB backend, Expo (React Native) mobile cli
 - Commit messages: `feat(api): ...`, `feat(ui): ...`, `fix(api): ...`.
 - Everything user-facing is English (UI copy, API messages). Some older code comments are Romanian; new ones in English.
 - Never commit without the user's explicit OK, and never add `Co-Authored-By` trailers.
+- Before handing a UI feature over for testing, run it end-to-end in Expo web (see `app/mobile/CLAUDE.md` → E2E testing), not just `tsc`.
 - No test suite yet. For backend changes, a quick check with FastAPI `TestClient` + `mongomock` (override `get_db`) works well — keep it in a scratch dir unless asked to add tests.
