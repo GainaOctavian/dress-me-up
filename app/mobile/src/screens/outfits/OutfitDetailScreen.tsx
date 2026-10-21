@@ -126,6 +126,8 @@ export const OutfitDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             items={outfit.items}
             refs={outfit.item_refs}
             onImageError={onImageError}
+            bodyId={outfit.body_id}
+            poseId={outfit.pose_id}
           />
         </View>
 

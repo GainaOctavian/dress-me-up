@@ -20,12 +20,15 @@ import { createOutfitStyles } from "../../styles/outfit";
 import { createOutfit, getMyOutfits, getOutfit, updateOutfit } from "../../api/outfits";
 import { getAllRelatedWardrobes } from "../../api/wardrobes";
 import { getMyItems, getWardrobeItems } from "../../api/items";
+import { getDefaultBodyId } from "../../api/bodies";
 import { errorMessage } from "../../api/client";
 import { Item } from "../../types/item";
 import { Outfit, OutfitItem, OutfitItemRef } from "../../types/outfit";
 import { Wardrobe } from "../../types/wardrobe";
 import { Chip } from "../../components/ui/Chip";
 import { OutfitCanvas } from "../../components/outfit/OutfitCanvas";
+import { LayersPanel } from "../../components/outfit/LayersPanel";
+import { useLayering } from "../../api/meta";
 import { defaultLayout } from "../../utils/outfitLayout";
 import { OutfitsStackParamList } from "../../navigation/OutfitsNavigator";
 
@@ -47,6 +50,11 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
   const [name, setName] = useState("");
   const [available, setAvailable] = useState<Item[] | null>(null);
   const [selected, setSelected] = useState<OutfitItem[]>([]);
+  // mannequin the outfit is dressed on; null = old free-canvas outfit
+  const [bodyId, setBodyId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [dragging, setDragging] = useState(false); // canvas drag locks the scroll
+  const meta = useLayering();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -67,6 +75,9 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
           setName(o.name);
           setWardrobeId(o.wardrobe_id ?? null);
           setSelected(o.items);
+          setBodyId(o.body_id ?? null);
+        } else {
+          setBodyId(await getDefaultBodyId());
         }
       } catch (e) {
         setError(errorMessage(e, "Could not load the outfit."));
@@ -91,6 +102,10 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
       name: i.name,
       categories: i.categories,
       image_url: i.image_url,
+      subcategory: i.subcategory,
+      image_size: i.image_size,
+      fit: i.fit,
+      plain_url: i.plain_url,
     }));
     for (const [id, ref] of Object.entries(existing?.item_refs ?? {})) {
       if (!list.some((p) => p.id === id)) list.push({ id, ...ref });
@@ -129,14 +144,16 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
     setBusy(true);
     setError(null);
     try {
+      const body = bodyId ? { body_id: bodyId, pose_id: "neutral" } : {};
       if (existing) {
-        await updateOutfit(token, existing._id, { name: name.trim(), items: selected });
+        await updateOutfit(token, existing._id, { name: name.trim(), items: selected, ...body });
         navigation.goBack();
       } else {
         const created = await createOutfit(token, {
           name: name.trim(),
           wardrobe_id: wardrobeId,
           items: selected,
+          ...body,
         });
         navigation.replace("OutfitDetail", { outfitId: created._id });
       }
@@ -150,6 +167,7 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
   return (
     <SafeAreaView style={styles.safeArea} edges={["bottom", "left", "right"]}>
       <ScrollView
+        scrollEnabled={!dragging}
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled"
       >
@@ -160,7 +178,37 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
         <View style={[styles.sectionCard, styles.form]}>
-          <OutfitCanvas items={selected} refs={refs} />
+          <OutfitCanvas
+            items={selected}
+            refs={refs}
+            bodyId={bodyId}
+            poseId="neutral"
+            selectedId={selectedId}
+            onSelect={setSelectedId}
+            onAdjust={(id, fit_adjust) =>
+              setSelected((prev) => prev.map((oi) => (oi.item_id === id ? { ...oi, fit_adjust } : oi)))
+            }
+            onInteract={setDragging}
+          />
+          {bodyId && meta && selected.length > 0 ? (
+            <LayersPanel
+              items={selected}
+              refs={refs}
+              meta={meta}
+              selectedId={selectedId}
+              onSelect={setSelectedId}
+              onChange={setSelected}
+            />
+          ) : null}
+
+          <Text style={styles.metaLabel}>Mannequin</Text>
+          <View style={itemStyles.chipWrap}>
+            {existing && !existing.body_id ? (
+              <Chip label="Free canvas" selected={bodyId === null} onPress={() => setBodyId(null)} />
+            ) : null}
+            <Chip label="Male" selected={bodyId === "mannequin_male"} onPress={() => setBodyId("mannequin_male")} />
+            <Chip label="Female" selected={bodyId === "mannequin_female"} onPress={() => setBodyId("mannequin_female")} />
+          </View>
 
           <Text style={styles.metaLabel}>Name</Text>
           <TextInput

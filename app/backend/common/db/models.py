@@ -107,6 +107,15 @@ class Transform(BaseModel):
     crop: Optional[CropSettings] = None
 
 
+class FitAdjust(BaseModel):
+    """The user's tweak on top of the auto-fit (plan 13). Offsets are in body
+    heights, so the tweak carries over when the outfit switches body."""
+    dx: float = 0.0
+    dy: float = 0.0
+    scale: float = Field(1.0, gt=0.1, le=5.0)
+    rotation: float = 0.0  # degrees
+
+
 class OutfitItem(BaseModel):
     item_id: str
     z_index: int  # layering order
@@ -118,6 +127,7 @@ class OutfitItem(BaseModel):
     into_shoes: bool = False           # trousers tucked into boots
     open: Optional[bool] = None        # jackets/coats worn open (plan 15)
     layer_offset: int = 0              # manual reorder within the layer band
+    fit_adjust: Optional[FitAdjust] = None  # dressed outfits only (plan 13)
 
 
 class Outfit(BaseModel):
@@ -156,6 +166,7 @@ class ImageAsset(BaseModel):
     # store S3 keys, not URLs: URLs are presigned per request and expire
     s3_key: str
     processed_s3_key: Optional[str] = None
+    plain_s3_key: Optional[str] = None  # cutout without glow, same canvas (plan 13)
     status: ImageAssetStatus = ImageAssetStatus.PENDING_UPLOAD
     mime_type: str
     width: Optional[int] = None

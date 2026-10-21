@@ -12,6 +12,7 @@ import threading
 import time
 from datetime import datetime, timedelta, timezone
 
+import numpy as np
 import pika
 from PIL import Image
 
@@ -19,7 +20,7 @@ from app.backend.common import queue
 from app.backend.common.db import models
 from app.backend.common.db.db import get_db
 from app.backend.common.storage import s3
-from app.backend.worker import processing
+from app.backend.worker import anchors, processing
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("worker")
@@ -78,16 +79,20 @@ def handle(asset_id: str) -> None:
     result = processing.process(s3.get_bytes(asset["s3_key"]))
     key = f"processed/{asset['owner_id']}/{asset_id}.png"
     s3.put_bytes(key, result["png"], "image/png")
+    plain_key = f"processed/{asset['owner_id']}/{asset_id}_plain.png"
+    s3.put_bytes(plain_key, result["plain_png"], "image/png")
 
     _assets().update_one({"_id": asset_id}, {"$set": {
         "status": Status.PROCESSED,
         "processed_s3_key": key,
+        "plain_s3_key": plain_key,
         "width": result["width"],
         "height": result["height"],
         "metadata.colors": result["colors"],
         "metadata.tags": result["tags"],
         "metadata.category": result["category"],
         "metadata.subcategory": result["subcategory"],
+        "metadata.fit": result["fit"],
         "metadata.model": "u2net + plain-bg mask + ViT-B-32/laion2b",
         "metadata.seconds": round(time.monotonic() - started, 2),
     }})
@@ -112,12 +117,23 @@ def suggest_only(asset_id: str) -> None:
     log.info("asset %s suggestions refreshed: %s", asset_id, result["subcategory"])
 
 
+def fit_only(asset_id: str) -> None:
+    """Compute garment anchors on an already processed cutout (plan 13 backfill)."""
+    asset = _assets().find_one({"_id": asset_id})
+    if not asset or asset.get("status") != Status.PROCESSED:
+        return
+    cutout = Image.open(io.BytesIO(s3.get_bytes(asset["processed_s3_key"]))).convert("RGBA")
+    fit = anchors.anchors(np.asarray(cutout.getchannel("A")))
+    _assets().update_one({"_id": asset_id}, {"$set": {"metadata.fit": fit}})
+    log.info("asset %s anchors: %s", asset_id, fit)
+
+
 def on_message(channel, method, _props, body):
     msg = json.loads(body)
     asset_id, attempt = msg["image_asset_id"], msg.get("attempt", 1)
     try:
-        if msg.get("suggest_only"):
-            suggest_only(asset_id)
+        if msg.get("suggest_only") or msg.get("fit_only"):
+            (suggest_only if msg.get("suggest_only") else fit_only)(asset_id)
             channel.basic_ack(delivery_tag=method.delivery_tag)
             return
         handle(asset_id)
@@ -153,7 +169,7 @@ def sweep() -> None:
         if _items().find_one({"image_asset_id": a["_id"]}, {"_id": 1}):
             _assets().update_one({"_id": a["_id"]}, {"$set": {"attached": True}})
             continue
-        for key in (a.get("s3_key"), a.get("processed_s3_key")):
+        for key in (a.get("s3_key"), a.get("processed_s3_key"), a.get("plain_s3_key")):
             if key:
                 s3.delete(key)
         _assets().delete_one({"_id": a["_id"]})

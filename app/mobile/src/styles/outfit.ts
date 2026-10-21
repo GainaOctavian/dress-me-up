@@ -10,6 +10,51 @@ export const createOutfitStyles = (colors: ThemeColors) =>
       backgroundColor: colors.backgroundAlt,
       overflow: "hidden",
     },
+    selectedBox: {
+      ...StyleSheet.absoluteFill,
+      borderWidth: 1.5,
+      borderColor: colors.primarySoft,
+      borderStyle: "dashed",
+      borderRadius: 4,
+    },
+    layerRow: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: 6,
+      paddingHorizontal: 8,
+      borderRadius: 8,
+      gap: 6,
+    },
+    layerRowSelected: {
+      backgroundColor: colors.backgroundAlt,
+    },
+    layerName: {
+      flex: 1,
+      color: colors.text,
+      fontSize: 14,
+    },
+    layerMeta: {
+      color: colors.textMuted,
+      fontSize: 12,
+    },
+    layerHidden: {
+      opacity: 0.45,
+    },
+    iconButton: {
+      padding: 4,
+    },
+    adjustRow: {
+      flexDirection: "row",
+      flexWrap: "wrap",
+      alignItems: "center",
+      gap: 6,
+      marginTop: 8,
+    },
+    warningText: {
+      color: colors.accent,
+      fontSize: 13,
+      marginBottom: 4,
+    },
     canvasEmpty: {
       ...StyleSheet.absoluteFill,
       alignItems: "center",

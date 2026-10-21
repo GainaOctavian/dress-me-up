@@ -53,13 +53,16 @@ def _require_item_owner(item: models.Item, user_id: str) -> None:
 def to_out(db: Database, items: List[models.Item]) -> List[dto_out.ItemOut]:
     """Attach presigned image URLs (one asset lookup for the whole list)"""
     asset_ids = [i.image_asset_id for i in items if i.image_asset_id]
-    urls = image_service.image_urls(db, asset_ids)
-    statuses = image_service.image_statuses(db, asset_ids)
+    infos = image_service.image_infos(db, asset_ids)
+    none = {"url": None, "plain_url": None, "status": None, "size": None, "fit": None}
     return [
         dto_out.ItemOut(
             **i.model_dump(),
-            image_url=urls.get(i.image_asset_id),
-            image_status=statuses.get(i.image_asset_id),
+            image_url=infos.get(i.image_asset_id, none)["url"],
+            image_status=infos.get(i.image_asset_id, none)["status"],
+            image_size=infos.get(i.image_asset_id, none)["size"],
+            fit=infos.get(i.image_asset_id, none)["fit"],
+            plain_url=infos.get(i.image_asset_id, none)["plain_url"],
         )
         for i in items
     ]

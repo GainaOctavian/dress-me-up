@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel
 
@@ -10,6 +10,10 @@ class OutfitItemRef(BaseModel):
     name: str
     categories: List[models.ItemCategory] = []
     image_url: Optional[str] = None
+    subcategory: Optional[str] = None
+    image_size: Optional[List[int]] = None  # [w, h] of image_url
+    fit: Optional[Dict[str, Any]] = None  # garment anchors (worker, plan 13)
+    plain_url: Optional[str] = None  # cutout without glow, for the mannequin
 
 
 class OutfitOut(models.Outfit):

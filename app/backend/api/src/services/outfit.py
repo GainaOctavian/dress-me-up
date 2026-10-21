@@ -118,23 +118,28 @@ def to_out(db: Database, outfits: List[models.Outfit]) -> List[dto_out.OutfitOut
         models.Item(**i)
         for i in _db("Error retrieving items", items_repo.find_items_by_ids, db, item_ids)
     ] if item_ids else []
-    urls = image_service.image_urls(
+    infos = image_service.image_infos(
         db,
         [i.image_asset_id for i in items if i.image_asset_id]
         + [o.image_asset_id for o in outfits if o.image_asset_id]
     )
+    none = {"url": None, "plain_url": None, "size": None, "fit": None}
     refs = {
         i.id: dto_out.OutfitItemRef(
             name=i.name,
             categories=i.categories or [],
-            image_url=urls.get(i.image_asset_id),
+            subcategory=i.subcategory,
+            image_url=infos.get(i.image_asset_id, none)["url"],
+            image_size=infos.get(i.image_asset_id, none)["size"],
+            fit=infos.get(i.image_asset_id, none)["fit"],
+            plain_url=infos.get(i.image_asset_id, none)["plain_url"],
         )
         for i in items
     }
     return [
         dto_out.OutfitOut(
             **o.model_dump(),
-            preview_url=urls.get(o.image_asset_id),
+            preview_url=infos.get(o.image_asset_id, none)["url"],
             item_refs={oi.item_id: refs[oi.item_id] for oi in o.items if oi.item_id in refs},
         )
         for o in outfits

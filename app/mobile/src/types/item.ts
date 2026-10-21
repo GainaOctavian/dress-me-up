@@ -1,3 +1,4 @@
+import { GarmentAnchors } from "./outfit";
 export const ITEM_CATEGORIES = [
   "top",
   "bottom",
@@ -23,6 +24,9 @@ export interface Item {
   image_url?: string | null;
   // background removal state; "processed" = transparent cutout
   image_status?: "pending_upload" | "ready" | "processing" | "processed" | "failed" | null;
+  image_size?: [number, number] | null; // [w, h] of image_url
+  fit?: GarmentAnchors | null; // worker anchors (plan 13)
+  plain_url?: string | null; // cutout without glow, for the mannequin
   created_at: string;
 }
 

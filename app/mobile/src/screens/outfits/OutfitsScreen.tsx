@@ -169,6 +169,8 @@ const OutfitsScreen: React.FC<Props> = ({ navigation }) => {
               items={item.items}
               refs={item.item_refs}
               onImageError={onImageError}
+              bodyId={item.body_id}
+              poseId={item.pose_id}
             />
             <Text style={outfitStyles.cardTitle}>{item.name}</Text>
             <Text style={outfitStyles.cardMeta}>

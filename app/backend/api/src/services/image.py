@@ -129,30 +129,34 @@ def claim_uploaded_asset(
     return asset
 
 
-def image_statuses(db: Database, asset_ids: List[str]) -> Dict[str, str]:
-    """asset_id -> status, for showing "processing" on items"""
+def image_infos(db: Database, asset_ids: List[str]) -> Dict[str, dict]:
+    """asset_id -> {url, plain_url, status, size, fit}: presigned GET
+    (processed image when there is one), the glow-free cutout for the
+    mannequin, status (items show "processing"), its [w, h] and the garment
+    anchors (plan 13) when known"""
     if not asset_ids:
         return {}
     data = _db(
         "Error retrieving images",
         assets_repo.find_assets_by_ids, db, asset_ids
     )
-    return {a["_id"]: a.get("status") for a in data}
+    infos = {}
+    for a in data:
+        processed = a.get("processed_s3_key")
+        infos[a["_id"]] = {
+            "url": s3.presigned_get(processed or a["s3_key"]),
+            "plain_url": s3.presigned_get(a["plain_s3_key"]) if a.get("plain_s3_key") else None,
+            "status": a.get("status"),
+            # width/height are the processed image's; anchors only exist there
+            "size": [a["width"], a["height"]] if processed and a.get("width") else None,
+            "fit": (a.get("metadata") or {}).get("fit") if processed else None,
+        }
+    return infos
 
 
 def image_urls(db: Database, asset_ids: List[str]) -> Dict[str, str]:
     """asset_id -> presigned GET (processed image when there is one)"""
-    if not asset_ids:
-        return {}
-    data = _db(
-        "Error retrieving images",
-        assets_repo.find_assets_by_ids, db, asset_ids
-    )
-    urls = {}
-    for a in data:
-        key = a.get("processed_s3_key") or a["s3_key"]
-        urls[a["_id"]] = s3.presigned_get(key)
-    return urls
+    return {k: v["url"] for k, v in image_infos(db, asset_ids).items()}
 
 
 def delete_asset(db: Database, asset_id: Optional[str]) -> None:
@@ -163,7 +167,7 @@ def delete_asset(db: Database, asset_id: Optional[str]) -> None:
     try:
         data = assets_repo.find_asset_by_id(db, asset_id)
         if data:
-            for key in (data.get("s3_key"), data.get("processed_s3_key")):
+            for key in (data.get("s3_key"), data.get("processed_s3_key"), data.get("plain_s3_key")):
                 if key:
                     s3.delete(key)
         assets_repo.delete_asset_by_id(db, asset_id)

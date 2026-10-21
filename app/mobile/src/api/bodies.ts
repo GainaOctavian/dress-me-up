@@ -1,7 +1,9 @@
+import { useEffect, useState } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { apiClient } from "./client";
 import { cached, cacheKey } from "./cache";
 import { Body } from "../types/body";
+import { useAuth } from "../hooks/useAuth";
 
 // Pose images are immutable; URLs are presigned for 24h, so the list is
 // cached and refetched with forceRefresh when an image fails to load.
@@ -11,6 +13,17 @@ export const getBodies = (token: string, options?: { forceRefresh?: boolean }) =
     async () => (await apiClient.getWithAuth<{ bodies: Body[] }>("/bodies/", token)).bodies,
     options?.forceRefresh
   );
+
+// Bodies for canvases; `refresh()` refetches (expired or re-seeded image)
+export function useBodies(): { bodies: Body[] | null; refresh: () => void } {
+  const { token } = useAuth();
+  const [bodies, setBodies] = useState<Body[] | null>(null);
+  const load = (forceRefresh = false) => {
+    if (token) getBodies(token, { forceRefresh }).then(setBodies).catch((e) => console.log("bodies", e));
+  };
+  useEffect(() => load(), [token]);
+  return { bodies, refresh: () => load(true) };
+}
 
 // Device setting, not account data: which mannequin new outfits start on.
 const DEFAULT_BODY_KEY = "settings:default_body";

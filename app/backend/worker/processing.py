@@ -9,6 +9,7 @@ import numpy as np
 from PIL import Image, ImageFilter
 
 from app.backend.common import layering
+from app.backend.worker import anchors
 
 MAX_SIDE = 1024
 GLOW_RGB = (99, 102, 241)  # app primarySoft (#6366f1)
@@ -81,9 +82,11 @@ def cut_out(image: Image.Image) -> Image.Image:
     return rgba.crop(bbox) if bbox else rgba
 
 
-def add_glow(cutout: Image.Image) -> Image.Image:
+def add_glow(cutout: Image.Image) -> tuple:
     """Soft indigo glow behind the item's contour (the 'pop'), on a padded
-    transparent canvas so the glow isn't clipped."""
+    transparent canvas so the glow isn't clipped. Also returns the plain
+    cutout on the same canvas (garments on the mannequin, plan 13), so
+    anchors computed on one fit the other."""
     cutout.thumbnail((MAX_SIDE, MAX_SIDE))
     w, h = cutout.size
     pad = max(8, int(max(w, h) * 0.06))
@@ -97,8 +100,10 @@ def add_glow(cutout: Image.Image) -> Image.Image:
 
     glow = Image.new("RGBA", canvas_size, GLOW_RGB + (0,))
     glow.putalpha(glow_alpha)
+    plain = Image.new("RGBA", canvas_size, (0, 0, 0, 0))
+    plain.alpha_composite(cutout, (pad, pad))
     glow.alpha_composite(cutout, (pad, pad))
-    return glow
+    return glow, plain
 
 
 def _odd(n: int) -> int:
@@ -247,7 +252,9 @@ def process(original: bytes) -> dict:
     cutout = cut_out(image)
     result = suggest(cutout)
     result["colors"] = dominant_colors(cutout)
-    final = add_glow(cutout)
+    final, plain = add_glow(cutout)
     result["png"] = to_png_bytes(final)
+    result["plain_png"] = to_png_bytes(plain)
+    result["fit"] = anchors.anchors(np.asarray(final.getchannel("A")))
     result["width"], result["height"] = final.size
     return result

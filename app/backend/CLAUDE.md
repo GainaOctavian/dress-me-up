@@ -68,7 +68,8 @@ Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` depen
 - Access (`services/outfit.py`): wardrobe outfits are readable by any member and editable by editor+. Personal outfits (`wardrobe_id=None`) belong to their owner only. `GET /outfits/me` = my outfits + outfits of every wardrobe I'm in.
 - `_validate_items` on every write: items exist and are unique; in that wardrobe (wardrobe outfit), or owned/visible to the caller (personal).
 - Cascades: removing an item from a wardrobe pulls it from that wardrobe's outfits; deleting an item pulls it from all outfits; deleting a wardrobe turns its outfits into personal outfits of their creators (`detach_outfits_from_wardrobe`).
-- Responses are `OutfitOut` with `item_refs {item_id: {name, categories, image_url}}` and `preview_url`, built by `outfit_service.to_out` (one item query + one image query per list), so clients can draw an outfit without fetching items.
+- Responses are `OutfitOut` with `item_refs {item_id: {name, categories, subcategory, image_url, plain_url, image_size, fit}}` and `preview_url`, built by `outfit_service.to_out` (one item query + one asset query per list via `image_service.image_infos`), so clients can draw and dress an outfit without fetching items. `ItemOut` carries the same image fields.
+- Dressed outfits (plan 13): `body_id`/`pose_id` set; each `OutfitItem` may carry `fit_adjust {dx, dy, scale, rotation}` (offsets in body heights, so tweaks survive a body switch). `PUT` can't clear `body_id` back to None (`exclude_none`); the app never needs to.
 
 ## Layering (plan 11)
 
@@ -91,8 +92,10 @@ Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` depen
 
 - Flow: client uploads to S3 → `POST /images/{id}/uploaded` (asset `ready`, job queued via `common/queue.publish`) → worker: `processing` → `processed` (or `failed` after 3 attempts) → client polls `GET /images/{id}` for `status`, the cutout URL and suggestions (`colors`, `tags`, `category`). Item create/update also claims the asset (`attached=True`, once) and queues it if the client skipped `/uploaded`.
 - `worker/processing.py` is pure (bytes in → PNG + suggestions out): rembg `isnet-general-use` cutout, cropped, indigo glow (#6366f1) baked into a padded transparent PNG (max 1024px), k-means colors in Lab mapped to `PALETTE` names, CLIP ViT-B-32 zero-shot over `GARMENTS` (→ category + garment tag) and `TAG_GROUPS` (one tag per group above a threshold). Tune vocab/thresholds there.
+- Plan 13 additions: `add_glow` also returns the plain cutout on the same padded canvas → `plain_s3_key` (`processed/<owner>/<asset>_plain.png`, drawn on the mannequin; cards keep the glow). `worker/anchors.py` (pure numpy, self-check: `python -m app.backend.worker.anchors`) computes garment anchors on the processed alpha (`alpha > 200` skips the glow) → `metadata.fit = {format, collar, top_l/r, hem_l/r, parts}`. No torso width on purpose: sleeves hanging along the body merge with it on real photos; the client scales tops by length.
+- Backfill modes: `python -m app.backend.worker.backfill [suggest|fit|reprocess]` (`reprocess` sets processed assets back to `ready` and re-runs everything; item fields are still only filled when empty).
 - `worker/main.py`: writes `processed/<owner>/<asset>.png`, stores suggestions in `asset.metadata`, then `merge_into_item` fills the item: colors/categories only if empty, tags merged. Never overwrites user input.
-- Sweeper (every 5 min): re-queues `ready` > 5 min / `processing` > 10 min; deletes un-attached uploads > 24h (S3 + doc).
+- Sweeper (every 5 min): re-queues `ready` > 5 min / `processing` > 10 min; deletes un-attached uploads > 24h (S3 + doc, all three keys; `image_service.delete_asset` too).
 - The worker image bakes the models (~2.5 GB, CPU torch). First build is slow; code changes rebuild only the last layers. Publishing never fails an API request: if RabbitMQ is down the sweeper catches up.
 - Checks: point `RABBITMQ_URL` at a dead port in TestClient scripts so they don't enqueue into the dev stack.
 
