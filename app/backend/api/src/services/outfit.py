@@ -4,7 +4,9 @@ from starlette import status
 from fastapi.exceptions import HTTPException
 from pymongo.synchronous.database import Database
 
+from app.backend.common import queue
 from app.backend.common.db import models
+from app.backend.common.storage import s3
 from app.backend.api.src.dto.input import outfit as dto_in
 from app.backend.api.src.dto.output import outfit as dto_out
 from app.backend.api.src.repositories import (
@@ -110,6 +112,27 @@ def _check_body(db: Database, user_id: str, body_id, pose_id) -> None:
         )
 
 
+def _queue_render(db: Database, outfit: models.Outfit) -> None:
+    """Dressed outfits: bump the render version and queue a 3D render
+    (plan 19). The previous image stays until the new one replaces it.
+    Never fails the request: a lost job just leaves the old render."""
+    if not outfit.body_id:
+        return
+    render = outfit.render or models.OutfitRender()
+    version = render.version + 1
+    # the whole subdocument: `render` is null on new outfits ($set on
+    # render.status would fail there)
+    _db(
+        f"Error queueing render for outfit {outfit.id}",
+        outfits_repo.update_outfit_by_id, db, outfit.id,
+        {"render": render.model_copy(update={"status": "queued", "version": version, "error": None}).model_dump()}
+    )
+    try:
+        queue.publish(queue.RENDER_QUEUE, {"outfit_id": outfit.id, "version": version})
+    except Exception:
+        pass
+
+
 def to_out(db: Database, outfits: List[models.Outfit]) -> List[dto_out.OutfitOut]:
     """Attach item summaries (name, categories, image URL) and the preview
     URL, with one item query and one image query for the whole list."""
@@ -140,6 +163,7 @@ def to_out(db: Database, outfits: List[models.Outfit]) -> List[dto_out.OutfitOut
         dto_out.OutfitOut(
             **o.model_dump(),
             preview_url=infos.get(o.image_asset_id, none)["url"],
+            render_url=s3.presigned_get(o.render.image_key) if o.render and o.render.image_key else None,
             item_refs={oi.item_id: refs[oi.item_id] for oi in o.items if oi.item_id in refs},
         )
         for o in outfits
@@ -194,7 +218,8 @@ def create_outfit(
     _check_body(db, user_id, request.body_id, request.pose_id)
     outfit = models.Outfit(**request.model_dump(), owner_id=user_id)
     _db("Error creating outfit", outfits_repo.insert_outfit, db, outfit)
-    return outfit
+    _queue_render(db, outfit)
+    return _get_outfit(db, outfit.id)
 
 
 def update_outfit(
@@ -216,6 +241,7 @@ def update_outfit(
             f"Error updating outfit {outfit_id}",
             outfits_repo.update_outfit_by_id, db, outfit_id, update_data
         )
+    _queue_render(db, _get_outfit(db, outfit_id))
     return _get_outfit(db, outfit_id)
 
 
@@ -227,3 +253,8 @@ def delete_outfit(db: Database, outfit_id: str, user_id: str) -> None:
         outfits_repo.delete_outfit_by_id, db, outfit_id
     )
     image_service.delete_asset(db, outfit.image_asset_id)
+    if outfit.render and outfit.render.image_key:
+        try:
+            s3.delete(outfit.render.image_key)
+        except Exception:
+            pass  # best effort, like delete_asset

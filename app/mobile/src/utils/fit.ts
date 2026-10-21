@@ -43,6 +43,8 @@ export function drawOrder(
 // A flat garment is about half its circumference wide; worn and seen from the
 // front it's ~1/1.38 of that (measured on the mannequins' chest and waist).
 const FLAT_TO_WORN = 1.38;
+// a worn top is a bit wider than the chest it covers
+const EASE = 1.1;
 // Width padding per layer role, so stacked layers read as layers.
 const ROLE_PAD: Record<string, number> = {
   base: 1.0, mid: 1.03, insulation: 1.07, outer: 1.12, over: 1.18,
@@ -131,9 +133,15 @@ function fitRect(
       // length decides the scale: sleeves make widths unreliable on photos
       const collar = g(a.collar);
       const hemY = Math.max(g(a.hem_l)[1], g(a.hem_r)[1]);
-      const top = neck[1] - 0.3 * (neck[1] - eyes[1]); // back of the collar sits above the neck base
+      const top = neck[1] - 0.45 * (neck[1] - eyes[1]); // back of the collar sits above the neck base
       const sy = (levelY(LENGTH[name] ?? 1.6) - top) / Math.max(1, hemY - collar[1]);
-      return place((sy / FLAT_TO_WORN) * pad, sy, collar, [neck[0], top]);
+      // width: the torso column between the sleeves (worker, plan 14) onto the
+      // chest with a little ease; without sleeves found, from the length
+      const torso = a.shoulder_l && a.shoulder_r ? (a.shoulder_l[0] - a.shoulder_r[0]) * gw : 0;
+      const sx = torso > 0
+        ? (width("chest_l", "chest_r") * pad * EASE) / torso
+        : (sy / FLAT_TO_WORN) * pad;
+      return place(sx, sy, collar, [neck[0], top]);
     }
     case "legs": {
       // waistband between natural waist and hips, width from the body outline

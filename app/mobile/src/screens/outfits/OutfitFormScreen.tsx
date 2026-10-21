@@ -20,7 +20,7 @@ import { createOutfitStyles } from "../../styles/outfit";
 import { createOutfit, getMyOutfits, getOutfit, updateOutfit } from "../../api/outfits";
 import { getAllRelatedWardrobes } from "../../api/wardrobes";
 import { getMyItems, getWardrobeItems } from "../../api/items";
-import { getDefaultBodyId } from "../../api/bodies";
+import { getDefaultBodyId, useBodies } from "../../api/bodies";
 import { errorMessage } from "../../api/client";
 import { Item } from "../../types/item";
 import { Outfit, OutfitItem, OutfitItemRef } from "../../types/outfit";
@@ -52,7 +52,10 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
   const [selected, setSelected] = useState<OutfitItem[]>([]);
   // mannequin the outfit is dressed on; null = old free-canvas outfit
   const [bodyId, setBodyId] = useState<string | null>(null);
+  const [poseId, setPoseId] = useState("neutral");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const { bodies } = useBodies();
+  const poseIds = Object.keys(bodies?.find((b) => b.id === bodyId)?.poses ?? {});
   const [dragging, setDragging] = useState(false); // canvas drag locks the scroll
   const meta = useLayering();
   const [busy, setBusy] = useState(false);
@@ -76,6 +79,7 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
           setWardrobeId(o.wardrobe_id ?? null);
           setSelected(o.items);
           setBodyId(o.body_id ?? null);
+          setPoseId(o.pose_id ?? "neutral");
         } else {
           setBodyId(await getDefaultBodyId());
         }
@@ -144,7 +148,7 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
     setBusy(true);
     setError(null);
     try {
-      const body = bodyId ? { body_id: bodyId, pose_id: "neutral" } : {};
+      const body = bodyId ? { body_id: bodyId, pose_id: poseId } : {};
       if (existing) {
         await updateOutfit(token, existing._id, { name: name.trim(), items: selected, ...body });
         navigation.goBack();
@@ -182,7 +186,7 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
             items={selected}
             refs={refs}
             bodyId={bodyId}
-            poseId="neutral"
+            poseId={poseId}
             selectedId={selectedId}
             onSelect={setSelectedId}
             onAdjust={(id, fit_adjust) =>
@@ -209,6 +213,21 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
             <Chip label="Male" selected={bodyId === "mannequin_male"} onPress={() => setBodyId("mannequin_male")} />
             <Chip label="Female" selected={bodyId === "mannequin_female"} onPress={() => setBodyId("mannequin_female")} />
           </View>
+          {bodyId && poseIds.length > 1 ? (
+            <>
+              <Text style={styles.metaLabel}>Pose</Text>
+              <View style={itemStyles.chipWrap}>
+                {poseIds.map((id) => (
+                  <Chip
+                    key={id}
+                    label={id.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase())}
+                    selected={poseId === id}
+                    onPress={() => setPoseId(id)}
+                  />
+                ))}
+              </View>
+            </>
+          ) : null}
 
           <Text style={styles.metaLabel}>Name</Text>
           <TextInput

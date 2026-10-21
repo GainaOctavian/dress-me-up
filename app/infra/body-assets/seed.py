@@ -7,12 +7,16 @@ Runs in the worker image (it has app.backend.common, S3 and Mongo env):
 
 Idempotent: same ids, docs replaced. Image keys carry a content hash, so a
 re-render gets a new key (clients cache images by key) and the old object
-is deleted.
+is deleted. Uploads WebP (q90, ~45 KB instead of a 1.4 MB PNG; lossless
+alpha, no banding on the grey gradients).
 """
 import hashlib
+import io
 import json
 import sys
 from pathlib import Path
+
+from PIL import Image
 
 from app.backend.common.db import models
 from app.backend.common.db.db import get_db
@@ -27,9 +31,11 @@ def main():
         old = bodies.find_one({"_id": body_id}) or {"poses": {}}
         poses = {}
         for pose_id, pose in spec["poses"].items():
-            png = (OUT / body_id / f"{pose_id}.png").read_bytes()
-            key = f"bodies/{body_id}/{pose_id}-{hashlib.sha256(png).hexdigest()[:10]}.png"
-            s3.put_bytes(key, png, "image/png")
+            buf = io.BytesIO()
+            Image.open(OUT / body_id / f"{pose_id}.png").save(buf, "WEBP", quality=90, method=6)
+            data = buf.getvalue()
+            key = f"bodies/{body_id}/{pose_id}-{hashlib.sha256(data).hexdigest()[:10]}.webp"
+            s3.put_bytes(key, data, "image/webp")
             old_key = old["poses"].get(pose_id, {}).get("image_key")
             if old_key and old_key != key:
                 s3.delete(old_key)

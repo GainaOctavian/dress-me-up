@@ -6,7 +6,10 @@ projected with the same camera, so they line up with the image exactly.
 
     docker run --rm -v <this dir>:/work dress-me-up-body-assets python render_bodies.py
 
-Writes out/<body_id>/neutral.png and out/bodies.json (read by seed.py).
+Writes out/<body_id>/<pose>.png, <pose>.pose.npy (Anny pose params, read by
+the 3D renderer) and out/bodies.json (read by seed.py).
+Poses (plan 14) are built on top of neutral; the spine never moves, so the
+torso outline keypoints come from neutral and only joints/feet are re-read.
 """
 import json
 import math
@@ -24,6 +27,7 @@ WORLD_H = 1.85  # m shown top to bottom
 FLOOR_Y = 0.97  # image y (0..1) of the soles
 OUT = "out"
 BODIES = {"mannequin_male": 0.0, "mannequin_female": 1.0}  # Anny gender value
+POSES = ["neutral", "relaxed", "hand_on_hip", "walk"]
 
 model = anny.Anny().to(dtype=torch.float32)
 BONE = {b: i for i, b in enumerate(model.bone_labels)}
@@ -111,15 +115,7 @@ def keypoints_and_measures(verts, faces, j):
         **edges("chest", z_chest, chest), **edges("waist", z_waist, waist),
         **edges("hip", z_hip - 0.04, hips),
     }
-    for name, bone in (("shoulder", "upperarm01"), ("elbow", "lowerarm01"),
-                       ("wrist", "wrist"),
-                       ("knee", "lowerleg01"), ("ankle", "foot")):
-        pts[f"{name}_l"] = J(f"{bone}.L")[[0, 2]]
-        pts[f"{name}_r"] = J(f"{bone}.R")[[0, 2]]
-    for side in ("l", "r"):
-        foot = verts[(verts[:, 2] < z_floor + 0.03) & ((verts[:, 0] > 0) == (side == "l"))]
-        pts[f"heel_{side}"] = [foot[:, 0].mean(), z_floor]
-        pts[f"toe_{side}"] = [foot[np.argmin(foot[:, 1]), 0], z_floor]
+    pts.update(joint_points(verts, j))
 
     perim = lambda s: float(np.sum(np.linalg.norm(np.diff(s, axis=0, append=s[:1]), axis=1)))
     cm = lambda m: round(float(m) * 100, 1)
@@ -130,6 +126,75 @@ def keypoints_and_measures(verts, faces, j):
         "inseam": cm(z_crotch - z_floor),
     }
     return {k: np.asarray(v, dtype=float) for k, v in pts.items()}, measures
+
+
+def joint_points(verts, j):
+    """Pose-dependent keypoints: joints, head top, and each foot's own sole
+    (in a walk one foot is lifted)."""
+    J = lambda b: j[BONE[b]]
+    pts = {"head_top": [0.0, verts[:, 2].max()],
+           "eye_l": J("eye.L")[[0, 2]], "eye_r": J("eye.R")[[0, 2]],
+           "neck": J("neck01")[[0, 2]]}
+    for name, bone in (("shoulder", "upperarm01"), ("elbow", "lowerarm01"),
+                       ("wrist", "wrist"), ("hip_joint", "upperleg01"),
+                       ("knee", "lowerleg01"), ("ankle", "foot")):
+        pts[f"{name}_l"] = J(f"{bone}.L")[[0, 2]]
+        pts[f"{name}_r"] = J(f"{bone}.R")[[0, 2]]
+    for side in ("l", "r"):
+        half = verts[(verts[:, 0] > 0) == (side == "l")]
+        sole = half[:, 2].min()
+        foot = half[half[:, 2] < sole + 0.03]
+        pts[f"heel_{side}"] = [foot[:, 0].mean(), sole]
+        pts[f"toe_{side}"] = [foot[np.argmin(foot[:, 1]), 0], sole]
+    return {k: np.asarray(v, dtype=float) for k, v in pts.items()}
+
+
+def turn(pose, bone, side, axis, deg):
+    """Local rotation on top of the current pose; .R mirrors y/z."""
+    i = BONE[f"{bone}.{side}"]
+    pose[i] = pose[i] @ rot(axis, -deg if side == "R" and axis in "yz" else deg)
+
+
+def reach(pheno, pose, side, target):
+    """Bend the forearm so the wrist lands on `target` (coordinate descent
+    over its three axes; the shoulder stays where the caller put it)."""
+    fore = BONE[f"lowerarm01.{side}"]
+    base_fore = pose[fore].clone()
+    s = 1 if side == "L" else -1
+
+    def miss(a):
+        pose[fore] = base_fore @ rot("x", a[0]) @ rot("y", s * a[1]) @ rot("z", s * a[2])
+        return np.linalg.norm(run(pheno, pose)[1][BONE[f"wrist.{side}"]] - target)
+
+    a = [0.0] * 3
+    for step in (32, 8, 2, 0.5):
+        for _ in range(2):
+            for k in range(3):
+                a[k] = min((a[k] + d * step for d in range(-4, 5)),
+                           key=lambda v: miss(a[:k] + [v] + a[k + 1:]))
+    print(f"  reach.{side}: {a} miss={miss(a) * 100:.1f}cm")
+
+
+def make_pose(pheno, name, neutral_pts):
+    pose = straighten_arms(pheno)
+    if name == "relaxed":
+        for s in "LR":
+            turn(pose, "upperarm01", s, "y", 28)
+    elif name == "hand_on_hip":
+        turn(pose, "upperarm01", "R", "y", 28)
+        turn(pose, "upperarm01", "L", "y", -8)  # elbow out
+        hip = neutral_pts["hip_l"]
+        reach(pheno, pose, "L", np.array([hip[0] + 0.03, 0.0, hip[1] + 0.06]))
+    elif name == "walk":
+        turn(pose, "upperleg01", "L", "x", -18)  # left leg forward, knee bent
+        turn(pose, "lowerleg01", "L", "x", 22)
+        turn(pose, "upperleg01", "R", "x", 10)   # right leg back
+        turn(pose, "lowerleg01", "R", "x", 8)
+        for s in "LR":
+            turn(pose, "upperarm01", s, "y", 26)
+        turn(pose, "upperarm01", "L", "x", 15)   # arms swing opposite to legs
+        turn(pose, "upperarm01", "R", "x", -15)
+    return pose
 
 
 def render(verts, faces, path):
@@ -194,19 +259,27 @@ def main():
     for body_id, gender in BODIES.items():
         print(body_id)
         pheno = {k: 0.5 for k in model.phenotype_labels} | {"gender": gender}
-        pose = straighten_arms(pheno)
-        verts, joints = run(pheno, pose)
         faces = model.faces.numpy()
-        pts, measures = keypoints_and_measures(verts, faces, joints)
         os.makedirs(f"{OUT}/{body_id}", exist_ok=True)
-        box = render(verts, faces, f"{OUT}/{body_id}/neutral.png")
+        poses = {}
+        for name in POSES:
+            pose = straighten_arms(pheno) if name == "neutral" else make_pose(pheno, name, neutral)
+            verts, joints = run(pheno, pose)
+            # solved pose params: the 3D renderer (plan 19) re-poses with them
+            np.save(f"{OUT}/{body_id}/{name}.pose.npy", pose.numpy())
+            if name == "neutral":
+                neutral, measures = keypoints_and_measures(verts, faces, joints)
+                pts = neutral
+            else:
+                pts = {**neutral, **joint_points(verts, joints)}
+            box = render(verts, faces, f"{OUT}/{body_id}/{name}.png")
+            poses[name] = {"size": list(SIZE),
+                           "keypoints": {k: to_image(v, *box) for k, v in pts.items()}}
+            print(" ", name, "rendered")
         manifest[body_id] = {
             "gender": "female" if gender else "male",
             "measurements_cm": measures,
-            "poses": {"neutral": {
-                "size": list(SIZE),
-                "keypoints": {k: to_image(v, *box) for k, v in pts.items()},
-            }},
+            "poses": poses,
         }
         print(" ", measures)
     with open(f"{OUT}/bodies.json", "w") as f:

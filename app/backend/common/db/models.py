@@ -141,6 +141,7 @@ class Outfit(BaseModel):
     # plan 12/13: dressed on this body/pose; None = free-canvas outfit
     body_id: Optional[str] = None
     pose_id: Optional[str] = None
+    render: Optional["OutfitRender"] = None  # 3D render (plan 19), dressed only
 
     created_at: UtcDatetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
@@ -150,6 +151,15 @@ class Outfit(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+class OutfitRender(BaseModel):
+    """The server's 3D render of a dressed outfit (plan 19). Every save bumps
+    `version`; the renderer only stores a result for the current version."""
+    status: str = "queued"  # queued | done | failed
+    version: int = 0
+    image_key: Optional[str] = None  # renders/<outfit>/<pose>-<sha10>.webp
+    error: Optional[str] = None
 
 
 class ImageAssetStatus(str, Enum):
@@ -216,3 +226,7 @@ class Body(BaseModel):
 
     class Config:
         populate_by_name = True
+
+
+# Outfit refers to OutfitRender, defined after it
+Outfit.model_rebuild()

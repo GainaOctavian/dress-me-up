@@ -55,6 +55,21 @@ export const createOutfitStyles = (colors: ThemeColors) =>
       fontSize: 13,
       marginBottom: 4,
     },
+    renderBadge: {
+      position: "absolute",
+      bottom: 8,
+      alignSelf: "center",
+      paddingHorizontal: 10,
+      paddingVertical: 4,
+      borderRadius: 999,
+      backgroundColor: colors.card,
+      borderWidth: 1,
+      borderColor: colors.border,
+    },
+    renderBadgeText: {
+      color: colors.textMuted,
+      fontSize: 12,
+    },
     canvasEmpty: {
       ...StyleSheet.absoluteFill,
       alignItems: "center",

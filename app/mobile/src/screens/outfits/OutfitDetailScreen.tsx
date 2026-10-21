@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   ScrollView,
@@ -61,6 +61,15 @@ export const OutfitDetailScreen: React.FC<Props> = ({ route, navigation }) => {
       void load();
     }, [load])
   );
+
+  // a 3D render is on its way: check back until it lands (~15 s per render)
+  useEffect(() => {
+    if (!token || outfit?.render?.status !== "queued") return;
+    const timer = setTimeout(() => {
+      getOutfit(token, outfitId).then(setOutfit).catch(() => {});
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [token, outfitId, outfit]);
 
   const refetchedImages = useRef(false);
   const onImageError = () => {
@@ -128,6 +137,8 @@ export const OutfitDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             onImageError={onImageError}
             bodyId={outfit.body_id}
             poseId={outfit.pose_id}
+            render={outfit.render}
+            renderUrl={outfit.render_url}
           />
         </View>
 

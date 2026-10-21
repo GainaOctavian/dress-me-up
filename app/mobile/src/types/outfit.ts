@@ -42,6 +42,11 @@ export interface GarmentAnchors {
   hem_l: [number, number];
   hem_r: [number, number];
   parts: number;
+  // tops, when the worker found the sleeves (format 2, plan 14)
+  shoulder_l?: [number, number];
+  shoulder_r?: [number, number];
+  sleeve_l?: [number, number];
+  sleeve_r?: [number, number];
 }
 
 export interface OutfitItemRef {
@@ -67,6 +72,16 @@ export interface Outfit {
   item_refs: Record<string, OutfitItemRef>;
   body_id?: string | null; // dressed on a mannequin (plan 13); null = free canvas
   pose_id?: string | null;
+  render?: OutfitRender | null; // server 3D render (plan 19)
+  render_url?: string | null; // presigned, the latest finished render
+}
+
+// queued: a newer version is rendering (render_url may still show the old one)
+export interface OutfitRender {
+  status: "queued" | "done" | "failed";
+  version: number;
+  image_key?: string | null;
+  error?: string | null;
 }
 
 export interface OutfitPayload {

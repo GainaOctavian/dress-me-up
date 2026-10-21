@@ -6,6 +6,7 @@ import pika
 
 RABBITMQ_URL = os.getenv("RABBITMQ_URL", "amqp://guest:guest@localhost:5672/")
 IMAGE_QUEUE = "image_processing"
+RENDER_QUEUE = "outfit_render"  # 3D renders (plan 19)
 
 
 def publish(queue: str, payload: dict) -> None:

@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { AuthStackParamList } from "../../navigation/AuthNavigator";
 import { useAuth } from "../../hooks/useAuth";
+import { errorMessage } from "../../api/client";
 import LoginForm from "../../components/auth/LoginForm";
 
 type Props = NativeStackScreenProps<AuthStackParamList, "Login">;
@@ -43,7 +44,8 @@ export default function LoginScreen({ navigation }: Props) {
       // RootNavigation handles the redirect to AppNavigator
     } catch (err) {
       console.log("Login exception:", err);
-      setError("Sign in failed. Check your details and try again.");
+      // the API's detail (wrong password), else the raw reason (network, timeout)
+      setError(errorMessage(err, `Sign in failed: ${err instanceof Error ? err.message : String(err)}`));
     } finally {
       setLoading(false);
     }

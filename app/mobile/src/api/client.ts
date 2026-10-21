@@ -6,6 +6,15 @@ export const setUnauthorizedHandler = (handler: (() => void) | null) => {
   onUnauthorized = handler;
 };
 
+// fetch that says which URL it couldn't reach (network errors name no host)
+async function send(url: string, init: RequestInit): Promise<Response> {
+  try {
+    return await fetch(url, init);
+  } catch (e) {
+    throw new Error(`Could not reach ${url}: ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
+
 async function handleResponse<T>(response: Response): Promise<T> {
   if (response.status === 401) onUnauthorized?.();
   if (!response.ok) {
@@ -27,7 +36,7 @@ async function requestJson<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${path}`;
 
-  const response = await fetch(url, {
+  const response = await send(url, {
     ...options,
     headers: {
       "Content-Type": "application/json",
@@ -44,7 +53,7 @@ async function requestForm<T>(
 ): Promise<T> {
   const url = `${API_BASE_URL}${path}`;
 
-  const response = await fetch(url, {
+  const response = await send(url, {
     method: "POST",
     headers: {
       "Content-Type": "application/x-www-form-urlencoded",

@@ -18,6 +18,7 @@ class OutfitItemRef(BaseModel):
 
 class OutfitOut(models.Outfit):
     preview_url: Optional[str] = None
+    render_url: Optional[str] = None  # 3D render (plan 19), presigned 24h
     # item_id -> summary; items deleted since are simply missing
     item_refs: Dict[str, OutfitItemRef] = {}
 

@@ -8,7 +8,17 @@ import { createOutfitStyles } from "../../styles/outfit";
 import { useBodies } from "../../api/bodies";
 import { useLayering } from "../../api/meta";
 import { dragToAdjust, drawOrder, placeItem } from "../../utils/fit";
-import { BodyCanvas } from "../body/BodyCanvas";
+import { Mesh, skinPlacement } from "../../utils/skin";
+import {
+  Canvas,
+  DashPathEffect,
+  Image as SkImage,
+  ImageShader,
+  Rect as SkRect,
+  useImage,
+  vec,
+  Vertices,
+} from "@shopify/react-native-skia";
 
 type Props = {
   items: OutfitItem[];
@@ -21,13 +31,56 @@ type Props = {
   onSelect?: (itemId: string | null) => void;
   onAdjust?: (itemId: string, adjust: FitAdjust) => void;
   onInteract?: (active: boolean) => void; // e.g. lock the parent ScrollView
+  // read-only views: the server's 3D render when there is one (plan 19)
+  render?: Outfit["render"];
+  renderUrl?: string | null;
 };
 
 // Read-only render of an outfit, square. With a body: items dressed on the
 // mannequin (utils/fit.ts) in layering order. Without: the old free canvas,
 // items placed by their normalized transforms in z_index order.
-export const OutfitCanvas: React.FC<Props> = (props) =>
-  props.bodyId ? <DressedCanvas {...props} bodyId={props.bodyId} /> : <FreeCanvas {...props} />;
+export const OutfitCanvas: React.FC<Props> = (props) => {
+  if (!props.bodyId) return <FreeCanvas {...props} />;
+  const editing = !!props.onSelect;
+  const rendering = !editing && props.render?.status === "queued";
+  return (
+    <View>
+      {!editing && props.renderUrl ? (
+        <RenderedCanvas url={props.renderUrl} onImageError={props.onImageError} />
+      ) : (
+        <DressedCanvas {...props} bodyId={props.bodyId} />
+      )}
+      {rendering ? <RenderBadge /> : null}
+    </View>
+  );
+};
+
+// The server's 3D render: same camera and canvas framing as the 2D view
+const RenderedCanvas: React.FC<{ url: string; onImageError?: () => void }> = ({ url, onImageError }) => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createOutfitStyles(colors), [colors]);
+  return (
+    <View style={[styles.canvas, { alignItems: "center" }]}>
+      <Image
+        source={{ uri: url, cacheKey: url.split("?")[0] }}
+        style={{ width: "66.7%", aspectRatio: 2 / 3 }}
+        contentFit="contain"
+        onError={onImageError}
+        accessibilityLabel="3D render"
+      />
+    </View>
+  );
+};
+
+const RenderBadge: React.FC = () => {
+  const { colors } = useTheme();
+  const styles = useMemo(() => createOutfitStyles(colors), [colors]);
+  return (
+    <View style={styles.renderBadge}>
+      <Text style={styles.renderBadgeText}>Rendering 3D…</Text>
+    </View>
+  );
+};
 
 const DressedCanvas: React.FC<Props & { bodyId: string }> = ({
   items, refs, onImageError, bodyId, poseId, selectedId, onSelect, onAdjust, onInteract,
@@ -37,26 +90,34 @@ const DressedCanvas: React.FC<Props & { bodyId: string }> = ({
   const { bodies, refresh } = useBodies();
   const meta = useLayering();
   const body = bodies?.find((b) => b.id === bodyId);
-  const pose = body?.poses[poseId ?? "neutral"] ?? (body && Object.values(body.poses)[0]);
+  // garments are fitted on the neutral pose, then skinned onto the shown pose
+  const neutral = body?.poses.neutral ?? (body && Object.values(body.poses)[0]);
+  const pose = (poseId && body?.poses[poseId]) || neutral;
   const [width, setWidth] = useState(0);
+  const height = pose ? width * (pose.size[1] / pose.size[0]) : 0;
   // live drag of the selected item, in screen px; committed on release
   const [drag, setDrag] = useState<{ x: number; y: number } | null>(null);
+  const bodyImage = useImage(pose?.image_url ?? null, () => refresh());
 
   const drawn = useMemo(() => {
-    if (!pose || !meta) return [];
+    if (!pose || !neutral || !meta) return [];
     return drawOrder(items.filter((oi) => oi.visible && refs[oi.item_id]), refs, meta).map((oi) => {
       const ref = refs[oi.item_id];
       const sub = ref.subcategory ? meta.subcategories[ref.subcategory] : undefined;
       const live = drag && oi.item_id === selectedId
-        ? { ...oi, fit_adjust: dragToAdjust(oi.fit_adjust, drag.x, drag.y, width, pose) }
+        ? { ...oi, fit_adjust: dragToAdjust(oi.fit_adjust, drag.x, drag.y, width, neutral) }
         : oi;
-      return { oi, ref, placements: placeItem(live, ref, sub, pose) };
+      const placements = placeItem(live, ref, sub, neutral);
+      const meshes = placements.map((p, i) =>
+        skinPlacement(p, ref.fit, sub?.slot, ref.subcategory, neutral, pose, i, placements.length)
+      );
+      return { oi, ref, meshes };
     });
-  }, [items, refs, pose, meta, drag, selectedId, width]);
+  }, [items, refs, pose, neutral, meta, drag, selectedId, width]);
 
   // handlers read the latest render through a ref (PanResponder is created once)
-  const latest = useRef({ drawn, selectedId, onSelect, onAdjust, onInteract, pose, width, items });
-  latest.current = { drawn, selectedId, onSelect, onAdjust, onInteract, pose, width, items };
+  const latest = useRef({ drawn, selectedId, onSelect, onAdjust, onInteract, neutral, width, height, items });
+  latest.current = { drawn, selectedId, onSelect, onAdjust, onInteract, neutral, width, height, items };
   const responder = useMemo(
     () =>
       PanResponder.create({
@@ -68,21 +129,21 @@ const DressedCanvas: React.FC<Props & { bodyId: string }> = ({
           if (latest.current.selectedId) setDrag({ x: g.dx, y: g.dy });
         },
         onPanResponderRelease: (e, g) => {
-          const { drawn, selectedId, onSelect, onAdjust, onInteract, pose, width, items } = latest.current;
+          const { drawn, selectedId, onSelect, onAdjust, onInteract, neutral, width, height, items } = latest.current;
           onInteract?.(false);
           setDrag(null);
-          if (!pose || !width) return;
+          if (!neutral || !width) return;
           if (Math.abs(g.dx) + Math.abs(g.dy) < 6) {
             // tap: select the topmost item under the finger, or nothing
             const x = e.nativeEvent.locationX / width;
-            const y = e.nativeEvent.locationY / (width * (pose.size[1] / pose.size[0]));
-            const hit = [...drawn].reverse().find(({ placements }) =>
-              placements.some((p) => x >= p.left && x <= p.left + p.width && y >= p.top && y <= p.top + p.height)
+            const y = e.nativeEvent.locationY / height;
+            const hit = [...drawn].reverse().find(({ meshes }) =>
+              meshes.some(({ bbox: [x0, y0, x1, y1] }) => x >= x0 && x <= x1 && y >= y0 && y <= y1)
             );
             onSelect?.(hit?.oi.item_id ?? null);
           } else if (selectedId) {
             const oi = items.find((i) => i.item_id === selectedId);
-            onAdjust?.(selectedId, dragToAdjust(oi?.fit_adjust, g.dx, g.dy, width, pose));
+            onAdjust?.(selectedId, dragToAdjust(oi?.fit_adjust, g.dx, g.dy, width, neutral));
           }
         },
         onPanResponderTerminate: () => {
@@ -93,50 +154,77 @@ const DressedCanvas: React.FC<Props & { bodyId: string }> = ({
     []
   );
 
+  const selected = drawn.find((d) => d.oi.item_id === selectedId);
   return (
     <View style={[styles.canvas, { alignItems: "center" }]}>
       {pose && meta ? (
         // 2:3 body at 2/3 width fills the square canvas
         <View
-          style={{ width: "66.7%" }}
+          style={{ width: "66.7%", aspectRatio: pose.size[0] / pose.size[1] }}
           onLayout={(e: LayoutChangeEvent) => setWidth(e.nativeEvent.layout.width)}
         >
-          <BodyCanvas pose={pose} onImageError={refresh}>
-            {drawn.map(({ oi, ref, placements }) => {
-              const url = ref.plain_url ?? ref.image_url;
-              return placements.map((r, i) => (
-                <View
-                  key={`${oi.item_id}-${i}`}
-                  pointerEvents="none"
-                  style={{
-                    position: "absolute",
-                    left: `${r.left * 100}%`,
-                    top: `${r.top * 100}%`,
-                    width: `${r.width * 100}%`,
-                    height: `${r.height * 100}%`,
-                    opacity: oi.opacity,
-                    transform: [{ rotate: `${r.rotation ?? 0}deg` }, { scaleX: r.flip ? -1 : 1 }],
-                  }}
-                >
-                  {url ? (
-                    <Image
-                      source={{ uri: url, cacheKey: url.split("?")[0] }}
-                      style={{ width: "100%", height: "100%" }}
-                      contentFit="contain"
-                      onError={onImageError}
-                      accessibilityLabel={ref.name}
-                    />
-                  ) : null}
-                  {oi.item_id === selectedId ? <View style={styles.selectedBox} /> : null}
-                </View>
-              ));
-            })}
-          </BodyCanvas>
-          {/* gesture layer over everything (children ignore touches) */}
+          {width > 0 ? (
+            <Canvas style={{ width, height }}>
+              {bodyImage ? <SkImage image={bodyImage} x={0} y={0} width={width} height={height} fit="fill" /> : null}
+              {drawn.map(({ oi, ref, meshes }) =>
+                meshes.map((mesh, i) => (
+                  <GarmentMesh
+                    key={`${oi.item_id}-${i}`}
+                    url={ref.plain_url ?? ref.image_url}
+                    mesh={mesh}
+                    width={width}
+                    height={height}
+                    opacity={oi.opacity}
+                    onError={onImageError}
+                  />
+                ))
+              )}
+              {selected
+                ? selected.meshes.map(({ bbox: [x0, y0, x1, y1] }, i) => (
+                    <SkRect
+                      key={i}
+                      x={x0 * width}
+                      y={y0 * height}
+                      width={(x1 - x0) * width}
+                      height={(y1 - y0) * height}
+                      color={colors.primarySoft}
+                      style="stroke"
+                      strokeWidth={1.5}
+                    >
+                      <DashPathEffect intervals={[6, 4]} />
+                    </SkRect>
+                  ))
+                : null}
+            </Canvas>
+          ) : null}
+          {/* gesture layer over the canvas */}
           {onSelect ? <View style={StyleSheet.absoluteFill} {...responder.panHandlers} /> : null}
         </View>
       ) : null}
     </View>
+  );
+};
+
+// One garment piece: the cutout as a texture on its skinned triangle mesh
+const GarmentMesh: React.FC<{
+  url?: string | null;
+  mesh: Mesh;
+  width: number;
+  height: number;
+  opacity: number;
+  onError?: () => void;
+}> = ({ url, mesh, width, height, opacity, onError }) => {
+  const image = useImage(url ?? null, onError ? () => onError() : undefined);
+  const vertices = useMemo(() => mesh.positions.map(([x, y]) => vec(x * width, y * height)), [mesh, width, height]);
+  const textures = useMemo(
+    () => (image ? mesh.textures.map(([u, v]) => vec(u * image.width(), v * image.height())) : []),
+    [mesh, image]
+  );
+  if (!image) return null;
+  return (
+    <Vertices vertices={vertices} textures={textures} indices={mesh.indices} opacity={opacity}>
+      <ImageShader image={image} />
+    </Vertices>
   );
 };
 

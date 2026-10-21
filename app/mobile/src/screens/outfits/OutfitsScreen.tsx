@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   FlatList,
@@ -69,6 +69,13 @@ const OutfitsScreen: React.FC<Props> = ({ navigation }) => {
       void load();
     }, [load])
   );
+
+  // 3D renders in flight: refresh the list until they land
+  useEffect(() => {
+    if (!outfits.some((o) => o.render?.status === "queued")) return;
+    const timer = setTimeout(() => void load(true), 5000);
+    return () => clearTimeout(timer);
+  }, [outfits, load]);
 
   // item image URLs expire (~24h): refetch once per visit if one breaks
   const refetchedImages = useRef(false);
@@ -171,6 +178,8 @@ const OutfitsScreen: React.FC<Props> = ({ navigation }) => {
               onImageError={onImageError}
               bodyId={item.body_id}
               poseId={item.pose_id}
+              render={item.render}
+              renderUrl={item.render_url}
             />
             <Text style={outfitStyles.cardTitle}>{item.name}</Text>
             <Text style={outfitStyles.cardMeta}>
