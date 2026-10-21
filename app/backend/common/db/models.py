@@ -1,6 +1,6 @@
 from enum import Enum
 from datetime import datetime, timezone
-from typing import Annotated, Optional, List, Dict, ClassVar
+from typing import Annotated, Any, Optional, List, Dict, ClassVar
 
 from pydantic import AfterValidator, BaseModel, Field, EmailStr
 
@@ -132,10 +132,10 @@ class Outfit(BaseModel):
 
 class ImageAssetStatus(str, Enum):
     PENDING_UPLOAD = "pending_upload"
-    READY = "ready"            # original uploaded, item created
+    READY = "ready"            # original uploaded, queued for processing
     PROCESSING = "processing"  # worker picked it up
-    PROCESSED = "processed"    # background removed, processed_s3_key set
-    FAILED = "failed"
+    PROCESSED = "processed"    # cutout in processed_s3_key, suggestions in metadata
+    FAILED = "failed"          # gave up; the original is still used
 
 
 class ImageAsset(BaseModel):
@@ -148,7 +148,10 @@ class ImageAsset(BaseModel):
     mime_type: str
     width: Optional[int] = None
     height: Optional[int] = None
-    metadata: Optional[Dict[str, str]] = Field(default_factory=dict)
+    # set by the worker: colors, tags, category (suggestions), model info,
+    # processing_started_at; values aren't all strings
+    metadata: Optional[Dict[str, Any]] = Field(default_factory=dict)
+    attached: bool = False  # used by an item/outfit; an asset is used once
     uploaded_at: UtcDatetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )

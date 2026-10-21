@@ -14,5 +14,11 @@ services:
     depends_on:
       - mongo
 
+  worker:
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+    depends_on:
+      - mongo
+
 volumes:
   mongo_data:

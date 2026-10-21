@@ -20,6 +20,8 @@ export interface Item {
   image_asset_id?: string | null;
   // presigned, valid ~24h; refetch the list if it stops loading
   image_url?: string | null;
+  // background removal state; "processed" = transparent cutout
+  image_status?: "pending_upload" | "ready" | "processing" | "processed" | "failed" | null;
   created_at: string;
 }
 

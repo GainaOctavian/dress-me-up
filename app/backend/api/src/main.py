@@ -1,8 +1,10 @@
 import logging
+import os
 from contextlib import asynccontextmanager
 
 import uvicorn
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from app.backend.api.src.routes import auth
 from app.backend.api.src.routes import user
@@ -44,6 +46,17 @@ app = FastAPI(
     version="1.0.0",
     lifespan=lifespan
 )
+
+
+# Browser clients (Expo web during development). Native apps don't need CORS.
+# e.g. CORS_ORIGINS=http://localhost:8090 in app/infra/compose/.env
+if os.getenv("CORS_ORIGINS"):
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=[o.strip() for o in os.environ["CORS_ORIGINS"].split(",")],
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 
 app.include_router(user.router)

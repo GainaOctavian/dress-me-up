@@ -8,6 +8,8 @@ from app.backend.common.db import models
 class ItemOut(models.Item):
     """Item plus a short-lived presigned URL for its image"""
     image_url: Optional[str] = None
+    # pending_upload/ready/processing/processed/failed; None without image
+    image_status: Optional[str] = None
 
 
 class GetItem(BaseModel):

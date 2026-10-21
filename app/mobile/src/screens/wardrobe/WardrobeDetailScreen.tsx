@@ -100,6 +100,21 @@ export const WardrobeDetailScreen: React.FC<Props> = ({
     }, [load])
   );
 
+  // While the worker processes photos, refetch every 4s (max ~2 min) so the
+  // cutout and auto-filled tags/colors show up without pull-to-refresh.
+  const processing = items.some(
+    (i) => i.image_status === "ready" || i.image_status === "processing"
+  );
+  const polls = useRef(0);
+  useEffect(() => {
+    if (!processing || polls.current >= 30) return;
+    const t = setTimeout(() => {
+      polls.current += 1;
+      void load(true);
+    }, 4000);
+    return () => clearTimeout(t);
+  }, [processing, items, load]);
+
   // Cached items carry presigned image URLs that expire after ~24h.
   // The first broken image triggers one fresh fetch per visit.
   const refetchedImages = useRef(false);

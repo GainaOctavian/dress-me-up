@@ -30,7 +30,8 @@ export const ItemCard: React.FC<Props> = ({ item, onPress, onImageError }) => {
           // cache by asset, not by URL: the signature changes on every fetch
           source={{ uri: item.image_url, cacheKey: item.image_asset_id ?? undefined }}
           style={styles.imagePlaceholder}
-          contentFit="cover"
+          // cutouts (processed) must not be cropped; raw photos fill the tile
+          contentFit={item.image_status === "processed" ? "contain" : "cover"}
           transition={150}
           onError={onImageError}
           accessibilityLabel={item.name}
@@ -39,6 +40,9 @@ export const ItemCard: React.FC<Props> = ({ item, onPress, onImageError }) => {
         <View style={styles.imagePlaceholder}>
           <Ionicons name="shirt-outline" size={36} color={colors.textMuted} />
         </View>
+      )}
+      {(item.image_status === "ready" || item.image_status === "processing") && (
+        <Text style={styles.meta}>Processing photo…</Text>
       )}
       <Text style={styles.name} numberOfLines={1}>
         {item.name}

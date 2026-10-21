@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   ActivityIndicator,
   Platform,
@@ -24,7 +24,7 @@ import {
   updateItem,
 } from "../../api/items";
 import { errorMessage } from "../../api/client";
-import { uploadImage } from "../../api/images";
+import { uploadImage, waitForProcessing } from "../../api/images";
 import { ITEM_CATEGORIES, ItemCategory } from "../../types/item";
 import { Chip } from "../../components/ui/Chip";
 import { confirmDestructive } from "../../utils/confirm";
@@ -61,6 +61,31 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
   const [photoUri, setPhotoUri] = useState<string | null>(item?.image_url ?? null);
   const [newImageId, setNewImageId] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  // worker: background removal + suggested category/tags/colors
+  const [analyzing, setAnalyzing] = useState(false);
+  const latestUpload = useRef<string | null>(null);
+  const mounted = useRef(true);
+  useEffect(() => () => { mounted.current = false; }, []);
+
+  // Swap in the cutout and fill only what the user left empty.
+  // Saving early is fine: the worker also fills the saved item.
+  const applySuggestions = async (imageAssetId: string) => {
+    if (!token) return;
+    setAnalyzing(true);
+    try {
+      const s = await waitForProcessing(token, imageAssetId);
+      if (!mounted.current || latestUpload.current !== imageAssetId) return;
+      if (s.status !== "processed") return; // keep the original photo
+      setPhotoUri(s.image_url);
+      if (s.category) setCategories((prev) => (prev.length ? prev : [s.category!]));
+      setTags((prev) => (prev.trim() ? prev : s.tags.join(", ")));
+      setItemColors((prev) => (prev.trim() ? prev : s.colors.join(", ")));
+    } catch (e) {
+      console.log("Image analysis status failed", e);
+    } finally {
+      if (mounted.current && latestUpload.current === imageAssetId) setAnalyzing(false);
+    }
+  };
 
   // Pick → upload right away, so Save only sends the image_asset_id.
   const pickPhoto = async (source: "library" | "camera") => {
@@ -95,7 +120,10 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
     setUploading(true);
     setError(null);
     try {
-      setNewImageId(await uploadImage(token, asset.uri, asset.width));
+      const id = await uploadImage(token, asset.uri, asset.width);
+      latestUpload.current = id;
+      setNewImageId(id);
+      void applySuggestions(id);
     } catch (e) {
       console.log("Photo upload failed", e);
       setError(errorMessage(e, "Could not upload the photo. Please try again."));
@@ -188,7 +216,7 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
               <Image
                 source={{ uri: photoUri }}
                 style={{ width: "100%", height: "100%" }}
-                contentFit="cover"
+                contentFit="contain"
                 accessibilityLabel="Item photo"
               />
             ) : (
@@ -202,6 +230,12 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
               </View>
             )}
           </View>
+
+          {analyzing && (
+            <Text style={itemStyles.hint}>
+              Removing the background and detecting colors and tags…
+            </Text>
+          )}
 
           {editable && (
             <View style={styles.buttonRow}>

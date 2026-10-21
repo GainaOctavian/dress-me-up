@@ -30,7 +30,9 @@ API base URL comes from `EXPO_PUBLIC_API_URL` (fallback in `src/config/constants
 1. Web deps without touching `package.json`: `npm install --no-save react-dom@<react version> react-native-web@0.21`.
 2. An isolated API: a small launcher that imports `app.backend.api.src.main:app`, overrides `get_db` with a `mongomock` DB (patch `Cursor.to_list`), adds `CORSMiddleware(allow_origins=["*"])`, seeds users via `services.user.create_user`, and runs uvicorn on 8001. Never point E2E at the real DB.
 3. `EXPO_PUBLIC_API_URL=http://localhost:8001 npx expo start --web --port 8090`, and drive it in the browser pane. On web, stub `window.confirm` to accept destructive confirms.
-4. Photos: point the launcher's S3 env at the compose SeaweedFS (`S3_ENDPOINT_URL=http://localhost:8333`, dev keys). expo-image-picker's web picker opens its `<input type=file>` with `dispatchEvent(new MouseEvent("click"))`, so stub the OS dialog with a capturing `click` listener on `document` that sets `input.files` (a canvas-generated `File`) and dispatches `change`. Patching `HTMLInputElement.prototype.click` doesn't work.
+Flows that need the real worker (photo → cutout → suggestions) can't run on the mongomock API: the worker reads Atlas. Run Expo web against the real local API instead (`EXPO_PUBLIC_API_URL=http://localhost:8000`, port 8091, `CORS_ORIGINS` set in `app/infra/compose/.env`) and use the `admin@test.io` test account. Clean up only what you created, through the app.
+
+4. Photos: point the launcher's S3 env at the compose SeaweedFS (`S3_ENDPOINT_URL=http://localhost:8333`, dev keys) **with `S3_BUCKET=dress-me-up-test`**. The real stack uses `dress-me-up` in the same SeaweedFS, so never bulk-delete there (a test cleanup once deleted a real item photo). expo-image-picker's web picker opens its `<input type=file>` with `dispatchEvent(new MouseEvent("click"))`, so stub the OS dialog with a capturing `click` listener on `document` that sets `input.files` (a canvas-generated `File`) and dispatches `change`. Patching `HTMLInputElement.prototype.click` doesn't work.
 
 ## Gotchas
 

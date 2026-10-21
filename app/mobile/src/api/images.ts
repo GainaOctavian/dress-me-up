@@ -2,6 +2,7 @@ import { Platform } from "react-native";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
 import { File } from "expo-file-system";
 import { apiClient } from "./client";
+import { ItemCategory } from "../types/item";
 
 interface UploadTarget {
   image_asset_id: string;
@@ -51,5 +52,45 @@ export async function uploadImage(
     console.log("Upload failed", res.status, await res.text());
     throw new Error(`Upload failed (${res.status})`);
   }
+  // starts background removal + color/tag detection on the worker
+  await apiClient.postJsonWithAuth<ImageStatus>(
+    `/images/${target.image_asset_id}/uploaded`,
+    token
+  );
   return target.image_asset_id;
+}
+
+export type ImageProcessingStatus =
+  | "pending_upload"
+  | "ready"
+  | "processing"
+  | "processed"
+  | "failed";
+
+export interface ImageStatus {
+  image_asset_id: string;
+  status: ImageProcessingStatus;
+  image_url: string; // cutout once processed
+  colors: string[];
+  tags: string[];
+  category: ItemCategory | null;
+}
+
+export const getImageStatus = (token: string, imageAssetId: string) =>
+  apiClient.getWithAuth<ImageStatus>(`/images/${imageAssetId}`, token);
+
+// Polls until the worker is done (or gives up after `timeoutMs`).
+export async function waitForProcessing(
+  token: string,
+  imageAssetId: string,
+  timeoutMs = 90_000
+): Promise<ImageStatus> {
+  const deadline = Date.now() + timeoutMs;
+  for (;;) {
+    const s = await getImageStatus(token, imageAssetId);
+    if (s.status === "processed" || s.status === "failed" || Date.now() > deadline) {
+      return s;
+    }
+    await new Promise((r) => setTimeout(r, 1500));
+  }
 }

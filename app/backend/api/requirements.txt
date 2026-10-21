@@ -10,3 +10,4 @@ python-dotenv==1.2.1
 pyjwt==2.10.1
 python-multipart==0.0.20
 boto3==1.43.116
+pika==1.3.2

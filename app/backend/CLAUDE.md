@@ -70,6 +70,15 @@ Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` depen
 - Cascades: removing an item from a wardrobe pulls it from that wardrobe's outfits; deleting an item pulls it from all outfits; deleting a wardrobe turns its outfits into personal outfits of their creators (`detach_outfits_from_wardrobe`).
 - Responses are `OutfitOut` with `item_refs {item_id: {name, categories, image_url}}` and `preview_url`, built by `outfit_service.to_out` (one item query + one image query per list), so clients can draw an outfit without fetching items.
 
+## Worker (plan 04)
+
+- Flow: client uploads to S3 → `POST /images/{id}/uploaded` (asset `ready`, job queued via `common/queue.publish`) → worker: `processing` → `processed` (or `failed` after 3 attempts) → client polls `GET /images/{id}` for `status`, the cutout URL and suggestions (`colors`, `tags`, `category`). Item create/update also claims the asset (`attached=True`, once) and queues it if the client skipped `/uploaded`.
+- `worker/processing.py` is pure (bytes in → PNG + suggestions out): rembg `isnet-general-use` cutout, cropped, indigo glow (#6366f1) baked into a padded transparent PNG (max 1024px), k-means colors in Lab mapped to `PALETTE` names, CLIP ViT-B-32 zero-shot over `GARMENTS` (→ category + garment tag) and `TAG_GROUPS` (one tag per group above a threshold). Tune vocab/thresholds there.
+- `worker/main.py`: writes `processed/<owner>/<asset>.png`, stores suggestions in `asset.metadata`, then `merge_into_item` fills the item: colors/categories only if empty, tags merged. Never overwrites user input.
+- Sweeper (every 5 min): re-queues `ready` > 5 min / `processing` > 10 min; deletes un-attached uploads > 24h (S3 + doc).
+- The worker image bakes the models (~2.5 GB, CPU torch). First build is slow; code changes rebuild only the last layers. Publishing never fails an API request: if RabbitMQ is down the sweeper catches up.
+- Checks: point `RABBITMQ_URL` at a dead port in TestClient scripts so they don't enqueue into the dev stack.
+
 ## Access
 
 - Every route except `POST /users/` and `POST /auth/token` needs `AUTH`. `GET /wardrobes/{id}` is members-only (`get_wardrobe_for_member`, 403 otherwise); there's no list-all endpoint for users or wardrobes, and users can only modify/delete themselves via `/users/me`.
