@@ -2,8 +2,11 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // All API cache keys share this prefix so logout can wipe them in one go.
 const PREFIX = "cache:";
+// Bump when cached API data changes shape or gets backfilled server-side
+// (v2: items gained `subcategory`). Old entries are ignored, then cleared.
+const VERSION = "v2";
 
-export const cacheKey = (key: string) => `${PREFIX}${key}`;
+export const cacheKey = (key: string) => `${PREFIX}${VERSION}:${key}`;
 
 // Read-through AsyncStorage cache. No TTL on purpose: screens pass
 // forceRefresh (pull-to-refresh) when they want fresh data.
@@ -40,6 +43,15 @@ export function writeCache(key: string, value: unknown) {
 
 export function dropCache(key: string) {
   void AsyncStorage.removeItem(key);
+}
+
+// Drop entries written by older cache versions (called once on startup).
+export async function purgeOldCache() {
+  const keys = await AsyncStorage.getAllKeys();
+  const current = `${PREFIX}${VERSION}:`;
+  await AsyncStorage.multiRemove(
+    keys.filter((k) => k.startsWith(PREFIX) && !k.startsWith(current))
+  );
 }
 
 export async function clearCache() {

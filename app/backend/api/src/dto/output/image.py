@@ -24,3 +24,4 @@ class ImageStatus(BaseModel):
     colors: List[str] = []
     tags: List[str] = []
     category: Optional[models.ItemCategory] = None
+    subcategory: Optional[str] = None

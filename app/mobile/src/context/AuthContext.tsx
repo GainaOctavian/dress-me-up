@@ -8,7 +8,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { login as loginApi } from "../api/auth";
 import { getCurrentUser } from "../api/users";
-import { clearCache } from "../api/cache";
+import { clearCache, purgeOldCache } from "../api/cache";
 import { setUnauthorizedHandler } from "../api/client";
 import { User } from "../types/user";
 
@@ -72,6 +72,7 @@ export const AuthProvider: React.FC<AuthProviderProps> = ({ children }) => {
     };
 
     void hydrate();
+    void purgeOldCache().catch(() => {});
   }, []);
 
   const setUser = (next: User) => {

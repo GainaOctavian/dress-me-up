@@ -15,6 +15,7 @@ export interface Item {
   name: string;
   wardrobe_ids: string[];
   categories: ItemCategory[];
+  subcategory?: string | null; // precise type (t_shirt, blazer, ...), see types/layering
   tags: string[];
   colors: string[];
   image_asset_id?: string | null;
@@ -28,6 +29,7 @@ export interface Item {
 export interface ItemPayload {
   name: string;
   categories: ItemCategory[];
+  subcategory?: string | null;
   tags: string[];
   colors: string[];
   image_asset_id?: string; // a freshly uploaded image (api/images.ts)

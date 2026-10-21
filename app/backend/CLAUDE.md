@@ -70,6 +70,14 @@ Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` depen
 - Cascades: removing an item from a wardrobe pulls it from that wardrobe's outfits; deleting an item pulls it from all outfits; deleting a wardrobe turns its outfits into personal outfits of their creators (`detach_outfits_from_wardrobe`).
 - Responses are `OutfitOut` with `item_refs {item_id: {name, categories, image_url}}` and `preview_url`, built by `outfit_service.to_out` (one item query + one image query per list), so clients can draw an outfit without fetching items.
 
+## Layering (plan 11)
+
+- `common/layering.py` is the single source: 52 subcategories (type → category, body slot, layer role, label, CLIP prompt, tucked default) and the draw-order `BANDS`. `draw_order()` / `z_of()` implement the rules (tucked tops under trousers, belt under untucked tops, trousers over shoes unless `into_shoes`, manual `layer_offset` within a band). `warnings()` gives soft outfit checks. Run `python -m app.backend.common.layering` for its self-check.
+- Served as `GET /api/v1/meta/layering` (no auth, static). The worker builds its CLIP garment prompts from the same table.
+- `Item.subcategory` must belong to one of the item's categories: an empty `categories` is filled from it, a contradiction is 400 (`_consistent_categories` in `services/item.py`). The worker only fills `subcategory` when it agrees with the item's category.
+- `OutfitItem` gained `tucked`, `into_shoes`, `open`, `layer_offset` (used by the plan 13 editor).
+- Backfill after vocabulary changes: `docker compose -f app/infra/compose/compose.yaml exec worker python -m app.backend.worker.backfill` (suggestions-only pass, fills empty fields only).
+
 ## Worker (plan 04)
 
 - Flow: client uploads to S3 → `POST /images/{id}/uploaded` (asset `ready`, job queued via `common/queue.publish`) → worker: `processing` → `processed` (or `failed` after 3 attempts) → client polls `GET /images/{id}` for `status`, the cutout URL and suggestions (`colors`, `tags`, `category`). Item create/update also claims the asset (`attached=True`, once) and queues it if the client skipped `/uploaded`.

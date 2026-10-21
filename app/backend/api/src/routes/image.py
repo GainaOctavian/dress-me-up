@@ -30,6 +30,7 @@ def _status(asset) -> dto_out.ImageStatus:
         colors=meta.get("colors", []),
         tags=meta.get("tags", []),
         category=meta.get("category"),
+        subcategory=meta.get("subcategory"),
     )
 
 

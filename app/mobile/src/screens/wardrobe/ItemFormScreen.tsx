@@ -25,6 +25,7 @@ import {
 } from "../../api/items";
 import { errorMessage } from "../../api/client";
 import { uploadImage, waitForProcessing } from "../../api/images";
+import { subcategoryLabel, useLayering } from "../../api/meta";
 import { ITEM_CATEGORIES, ItemCategory } from "../../types/item";
 import { Chip } from "../../components/ui/Chip";
 import { confirmDestructive } from "../../utils/confirm";
@@ -52,6 +53,11 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
   const [categories, setCategories] = useState<ItemCategory[]>(
     item?.categories ?? []
   );
+  // precise type (plan 11): options depend on the chosen categories
+  const layering = useLayering();
+  const [subcategory, setSubcategory] = useState<string | null>(item?.subcategory ?? null);
+  const categoriesRef = useRef(categories);
+  categoriesRef.current = categories;
   const [tags, setTags] = useState(item?.tags.join(", ") ?? "");
   const [itemColors, setItemColors] = useState(item?.colors.join(", ") ?? "");
   const [busy, setBusy] = useState(false);
@@ -78,6 +84,11 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
       if (s.status !== "processed") return; // keep the original photo
       setPhotoUri(s.image_url);
       if (s.category) setCategories((prev) => (prev.length ? prev : [s.category!]));
+      // suggested type only if it agrees with the categories in the form
+      const cats = categoriesRef.current.length ? categoriesRef.current : [s.category];
+      if (s.subcategory && s.category && cats.includes(s.category)) {
+        setSubcategory((prev) => prev ?? s.subcategory);
+      }
       setTags((prev) => (prev.trim() ? prev : s.tags.join(", ")));
       setItemColors((prev) => (prev.trim() ? prev : s.colors.join(", ")));
     } catch (e) {
@@ -134,10 +145,19 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
     }
   };
 
-  const toggleCategory = (c: ItemCategory) =>
-    setCategories((prev) =>
-      prev.includes(c) ? prev.filter((x) => x !== c) : [...prev, c]
-    );
+  const toggleCategory = (c: ItemCategory) => {
+    const next = categories.includes(c)
+      ? categories.filter((x) => x !== c)
+      : [...categories, c];
+    setCategories(next);
+    // drop a type that no longer matches any chosen category
+    const subCat = subcategory && layering?.subcategories[subcategory]?.category;
+    if (subCat && !next.includes(subCat)) setSubcategory(null);
+  };
+
+  const typeOptions = Object.entries(layering?.subcategories ?? {}).filter(
+    ([, info]) => categories.includes(info.category)
+  );
 
   // Runs an API call, then goes back to the wardrobe on success.
   const run = async (
@@ -160,6 +180,7 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
     const payload = {
       name: name.trim(),
       categories,
+      ...(subcategory ? { subcategory } : {}),
       tags: parseList(tags),
       colors: parseList(itemColors),
       ...(newImageId ? { image_asset_id: newImageId } : {}),
@@ -283,6 +304,26 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
               />
             ))}
           </View>
+
+          <Text style={styles.metaLabel}>Type</Text>
+          {!editable ? (
+            <Text style={styles.metaValue}>
+              {subcategory ? subcategoryLabel(layering, subcategory) : "—"}
+            </Text>
+          ) : categories.length === 0 ? (
+            <Text style={itemStyles.hint}>Pick a category to choose the exact type.</Text>
+          ) : (
+            <View style={itemStyles.chipWrap}>
+              {typeOptions.map(([key, info]) => (
+                <Chip
+                  key={key}
+                  label={info.label}
+                  selected={subcategory === key}
+                  onPress={() => setSubcategory(subcategory === key ? null : key)}
+                />
+              ))}
+            </View>
+          )}
 
           <Text style={styles.metaLabel}>Tags</Text>
           <TextInput

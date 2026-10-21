@@ -74,6 +74,7 @@ export interface ImageStatus {
   colors: string[];
   tags: string[];
   category: ItemCategory | null;
+  subcategory: string | null;
 }
 
 export const getImageStatus = (token: string, imageAssetId: string) =>

@@ -5,6 +5,7 @@ from typing import Annotated, Any, Optional, List, Dict, ClassVar
 from pydantic import AfterValidator, BaseModel, Field, EmailStr
 
 from app.backend.common.stringproc.stringproc import generate_id
+from app.backend.common.layering import Subcategory
 
 # Mongo returns naive datetimes (UTC). Mark them UTC so the API sends an
 # explicit offset; otherwise clients read them as local time.
@@ -66,6 +67,9 @@ class Item(BaseModel):
     name: str
     wardrobe_ids: List[str] = Field(default_factory=list)
     categories: Optional[List[ItemCategory]] = Field(default_factory=list)
+    # precise type (t_shirt, blazer, tights, ...): drives slot + layer
+    # order, see common/layering.py
+    subcategory: Optional[Subcategory] = None
     tags: Optional[List[str]] = Field(default_factory=list)
     colors: Optional[List[str]] = Field(default_factory=list)
     image_asset_id: Optional[str] = None
@@ -109,6 +113,11 @@ class OutfitItem(BaseModel):
     transform: Transform
     visible: bool = True
     opacity: float = Field(1.0, ge=0.0, le=1.0)
+    # layering switches (plan 11); None = the subcategory's default
+    tucked: Optional[bool] = None      # tops: tucked into the trousers
+    into_shoes: bool = False           # trousers tucked into boots
+    open: Optional[bool] = None        # jackets/coats worn open (plan 15)
+    layer_offset: int = 0              # manual reorder within the layer band
 
 
 class Outfit(BaseModel):

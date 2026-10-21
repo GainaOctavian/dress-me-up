@@ -4,6 +4,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { Image } from "expo-image";
 
 import { Item } from "../../types/item";
+import { subcategoryLabel, useLayering } from "../../api/meta";
 import { useTheme } from "../../hooks/useTheme";
 import { createItemStyles } from "../../styles/item";
 
@@ -17,6 +18,7 @@ type Props = {
 export const ItemCard: React.FC<Props> = ({ item, onPress, onImageError }) => {
   const { colors } = useTheme();
   const styles = useMemo(() => createItemStyles(colors), [colors]);
+  const layering = useLayering();
 
   return (
     <TouchableOpacity
@@ -47,9 +49,11 @@ export const ItemCard: React.FC<Props> = ({ item, onPress, onImageError }) => {
       <Text style={styles.name} numberOfLines={1}>
         {item.name}
       </Text>
-      {item.categories.length > 0 && (
+      {(item.subcategory || item.categories.length > 0) && (
         <Text style={styles.meta} numberOfLines={1}>
-          {item.categories.join(" · ")}
+          {item.subcategory
+            ? subcategoryLabel(layering, item.subcategory)
+            : item.categories.join(" · ")}
         </Text>
       )}
     </TouchableOpacity>

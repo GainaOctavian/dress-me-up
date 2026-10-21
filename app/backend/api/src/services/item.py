@@ -4,6 +4,7 @@ from starlette import status
 from fastapi.exceptions import HTTPException
 from pymongo.synchronous.database import Database
 
+from app.backend.common import layering
 from app.backend.common.db import models
 from app.backend.api.src.dto.input import item as dto_in
 from app.backend.api.src.repositories import (
@@ -102,6 +103,22 @@ def get_wardrobe_items(
     return [models.Item(**item) for item in data]
 
 
+def _consistent_categories(subcategory, categories: list) -> list:
+    """A subcategory belongs to one category: fill it in when the item has
+    none, reject a contradiction (e.g. "blazer" on a "bottom")."""
+    if not subcategory:
+        return categories
+    category = layering.SUBCATEGORIES[subcategory].category
+    if not categories:
+        return [category]
+    if category not in categories:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Type '{subcategory}' belongs to category '{category}'"
+        )
+    return categories
+
+
 def create_item(
         db: Database,
         user_id: str,
@@ -116,11 +133,9 @@ def create_item(
         )
     if request.image_asset_id:
         image_service.claim_uploaded_asset(db, request.image_asset_id, user_id)
-    item = models.Item(
-        **request.model_dump(exclude={"wardrobe_ids"}),
-        owner_id=user_id,
-        wardrobe_ids=wardrobe_ids,
-    )
+    data = request.model_dump(exclude={"wardrobe_ids"})
+    data["categories"] = _consistent_categories(request.subcategory, data["categories"])
+    item = models.Item(**data, owner_id=user_id, wardrobe_ids=wardrobe_ids)
     _db("Error creating item", items_repo.insert_item, db, item)
     return item
 
@@ -136,6 +151,13 @@ def update_item(
     item = _get_item(db, item_id)
     _require_item_owner(item, user_id)
     update_data = request.model_dump(exclude_unset=True, exclude_none=True)
+    if "subcategory" in update_data or "categories" in update_data:
+        cats = _consistent_categories(
+            update_data.get("subcategory", item.subcategory),
+            update_data.get("categories", item.categories or []),
+        )
+        if cats != (item.categories or []) or "categories" in update_data:
+            update_data["categories"] = cats
     new_image = update_data.get("image_asset_id")
     if new_image and new_image != item.image_asset_id:
         image_service.claim_uploaded_asset(db, new_image, user_id)

@@ -5,6 +5,7 @@ pipeline in processing.py, stores the cutout and suggestions on the asset,
 and fills in empty colors/tags/categories of the item that uses it.
 A sweeper thread re-queues stuck assets and deletes abandoned uploads.
 """
+import io
 import json
 import logging
 import threading
@@ -12,6 +13,7 @@ import time
 from datetime import datetime, timedelta, timezone
 
 import pika
+from PIL import Image
 
 from app.backend.common import queue
 from app.backend.common.db import models
@@ -37,15 +39,21 @@ def _items():
 
 def merge_into_item(asset_id: str, result: dict) -> None:
     """Fill what the user left empty; never overwrite their input
-    (tags are merged, colors/categories only set when empty)."""
+    (tags are merged, colors/categories/subcategory only set when empty)."""
     item = _items().find_one({"image_asset_id": asset_id})
     if not item:
         return  # not saved yet; the form reads suggestions from the asset
     update = {}
-    if not item.get("colors"):
+    if not item.get("colors") and "colors" in result:
         update["colors"] = result["colors"]
-    if not item.get("categories") and result.get("category"):
-        update["categories"] = [result["category"]]
+    categories = item.get("categories") or []
+    if not categories and result.get("category"):
+        update["categories"] = categories = [result["category"]]
+    # only a type that agrees with the item's category (the user may have
+    # picked "top" for something CLIP calls a coat)
+    if (not item.get("subcategory") and result.get("subcategory")
+            and result["category"] in categories):
+        update["subcategory"] = result["subcategory"]
     merged = list(dict.fromkeys((item.get("tags") or []) + result["tags"]))
     if merged != (item.get("tags") or []):
         update["tags"] = merged
@@ -79,6 +87,7 @@ def handle(asset_id: str) -> None:
         "metadata.colors": result["colors"],
         "metadata.tags": result["tags"],
         "metadata.category": result["category"],
+        "metadata.subcategory": result["subcategory"],
         "metadata.model": "u2net + plain-bg mask + ViT-B-32/laion2b",
         "metadata.seconds": round(time.monotonic() - started, 2),
     }})
@@ -87,10 +96,30 @@ def handle(asset_id: str) -> None:
              time.monotonic() - started, result["category"], result["colors"], result["tags"])
 
 
+def suggest_only(asset_id: str) -> None:
+    """Re-run just the CLIP suggestions on an already processed cutout
+    (backfill after the garment vocabulary changes, e.g. plan 11 types)."""
+    asset = _assets().find_one({"_id": asset_id})
+    if not asset or asset.get("status") != Status.PROCESSED:
+        return
+    cutout = Image.open(io.BytesIO(s3.get_bytes(asset["processed_s3_key"]))).convert("RGBA")
+    result = processing.suggest(cutout)
+    _assets().update_one({"_id": asset_id}, {"$set": {
+        "metadata.subcategory": result["subcategory"],
+        "metadata.category": result["category"],
+    }})
+    merge_into_item(asset_id, result)
+    log.info("asset %s suggestions refreshed: %s", asset_id, result["subcategory"])
+
+
 def on_message(channel, method, _props, body):
     msg = json.loads(body)
     asset_id, attempt = msg["image_asset_id"], msg.get("attempt", 1)
     try:
+        if msg.get("suggest_only"):
+            suggest_only(asset_id)
+            channel.basic_ack(delivery_tag=method.delivery_tag)
+            return
         handle(asset_id)
     except Exception:
         log.exception("asset %s failed (attempt %d)", asset_id, attempt)

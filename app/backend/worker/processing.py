@@ -8,6 +8,8 @@ from functools import lru_cache
 import numpy as np
 from PIL import Image, ImageFilter
 
+from app.backend.common import layering
+
 MAX_SIDE = 1024
 GLOW_RGB = (99, 102, 241)  # app primarySoft (#6366f1)
 GLOW_OPACITY = 0.6
@@ -169,18 +171,9 @@ def dominant_colors(cutout: Image.Image, k: int = 4, min_share: float = 0.15) ->
 # ---------------------------------------------------------------- CLIP tags
 
 
-# specific garment -> app category; the garment also becomes a tag
-GARMENTS = {
-    "t-shirt": "top", "shirt": "top", "polo shirt": "top", "sweater": "top",
-    "hoodie": "top", "tank top": "top",
-    "jeans": "bottom", "trousers": "bottom", "shorts": "bottom", "sweatpants": "bottom",
-    "dress": "dress",
-    "jacket": "outerwear", "coat": "outerwear", "parka": "outerwear", "blazer": "outerwear",
-    "sneakers": "shoes", "boots": "shoes", "dress shoes": "shoes", "sandals": "shoes",
-    "belt": "accessory", "tie": "accessory", "cap": "accessory", "hat": "accessory",
-    "beanie": "accessory", "bag": "accessory", "watch": "accessory",
-    "sunglasses": "accessory", "scarf": "accessory", "gloves": "accessory",
-}
+# garment types come from common/layering.py (plan 11): the best match sets
+# subcategory + category, and its label becomes a tag
+GARMENTS = {key: sub.prompt for key, sub in layering.SUBCATEGORIES.items()}
 
 # one tag per group, only when CLIP is fairly sure
 TAG_GROUPS = {
@@ -214,7 +207,7 @@ def _clip():
         return t / t.norm(dim=-1, keepdim=True)
 
     prompts = {
-        "garment": encode_texts([f"a product photo of {g}" for g in GARMENTS]),
+        "garment": encode_texts([f"a product photo of {p}" for p in GARMENTS.values()]),
         **{group: encode_texts([f"a photo of {t} clothing" for t in tags])
            for group, tags in TAG_GROUPS.items()},
     }
@@ -222,7 +215,7 @@ def _clip():
 
 
 def suggest(cutout: Image.Image) -> dict:
-    """{"category": ..., "tags": [...]} from CLIP zero-shot."""
+    """{"subcategory", "category", "tags"} from CLIP zero-shot."""
     import torch
     model, preprocess, prompts = _clip()
     # CLIP was trained on normal photos: show it the item on white
@@ -235,15 +228,16 @@ def suggest(cutout: Image.Image) -> dict:
     def probs(text_features):
         return (100.0 * img @ text_features.T).softmax(dim=-1)[0]
 
-    garment_names = list(GARMENTS)
-    garment = garment_names[int(probs(prompts["garment"]).argmax())]
-    tags = [garment]
+    garment_keys = list(GARMENTS)
+    garment = garment_keys[int(probs(prompts["garment"]).argmax())]
+    sub = layering.SUBCATEGORIES[garment]
+    tags = [sub.label.lower()]
     for group, names in TAG_GROUPS.items():
         p = probs(prompts[group])
         best = int(p.argmax())
         if float(p[best]) >= TAG_MIN_PROB[group] and names[best] not in SKIP_TAGS:
             tags.append(names[best])
-    return {"category": GARMENTS[garment], "tags": tags}
+    return {"subcategory": garment, "category": sub.category, "tags": tags}
 
 
 def process(original: bytes) -> dict:

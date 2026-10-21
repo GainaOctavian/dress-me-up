@@ -12,6 +12,7 @@ from app.backend.api.src.routes import wardrobe
 from app.backend.api.src.routes import item
 from app.backend.api.src.routes import image
 from app.backend.api.src.routes import outfit
+from app.backend.api.src.routes import meta
 from app.backend.common.db import models
 from app.backend.common.db.db import get_db
 
@@ -65,6 +66,7 @@ app.include_router(wardrobe.router)
 app.include_router(item.router)
 app.include_router(image.router)
 app.include_router(outfit.router)
+app.include_router(meta.router)
 
 
 @app.get("/", include_in_schema=False)
