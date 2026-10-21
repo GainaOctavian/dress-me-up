@@ -1,5 +1,6 @@
 import { Platform } from "react-native";
 import { ImageManipulator, SaveFormat } from "expo-image-manipulator";
+import { File } from "expo-file-system";
 import { apiClient } from "./client";
 
 interface UploadTarget {
@@ -40,8 +41,9 @@ export async function uploadImage(
   if (Platform.OS === "web") {
     form.append("file", await (await fetch(jpeg)).blob(), "photo.jpg");
   } else {
-    // React Native's FormData takes a {uri, name, type} file descriptor
-    form.append("file", { uri: jpeg, name: "photo.jpg", type: "image/jpeg" } as any);
+    // Expo's fetch (SDK 52+) rejects RN-style {uri, name, type} parts;
+    // expo-file-system's File implements Blob, so it's sent as bytes.
+    form.append("file", new File(jpeg) as unknown as Blob);
   }
 
   const res = await fetch(target.url, { method: "POST", body: form });

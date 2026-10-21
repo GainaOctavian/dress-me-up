@@ -33,4 +33,5 @@ API base URL comes from `EXPO_PUBLIC_API_URL` (fallback in `src/config/constants
 ## Gotchas
 
 - Don't put `flex: 1` in a `FlatList`/`ScrollView` `contentContainerStyle`: it stops the list from scrolling. Use `listContent` / `scrollContent`, and `flexGrow: 1` for empty states.
+- File uploads on native: Expo's `fetch` (SDK 52+) throws `Unsupported FormDataPart implementation` for React Native-style `{uri, name, type}` FormData parts. Append `new File(uri)` from `expo-file-system` (it implements `Blob`); on web, append a real `Blob`. See `api/images.ts`.
 - Lists read from cache on focus (`useFocusEffect`), and pull-to-refresh passes `forceRefresh`.
