@@ -20,6 +20,7 @@ import {
 import { User } from "../../types/user";
 import { useTheme } from "../../hooks/useTheme";
 import { createProfileStyles } from "../../styles/profile";
+import { MannequinSection } from "../../components/body/MannequinSection";
 
 export const ProfileScreen: React.FC = () => {
   const { token, logout, setUser: setAuthUser } = useAuth();
@@ -237,6 +238,8 @@ export const ProfileScreen: React.FC = () => {
         </View>
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
+
+        <MannequinSection />
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>

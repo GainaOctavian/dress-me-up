@@ -78,6 +78,15 @@ Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` depen
 - `OutfitItem` gained `tucked`, `into_shoes`, `open`, `layer_offset` (used by the plan 13 editor).
 - Backfill after vocabulary changes: `docker compose -f app/infra/compose/compose.yaml exec worker python -m app.backend.worker.backfill` (suggestions-only pass, fills empty fields only).
 
+## Bodies (plan 12)
+
+- `Body` (collection `bodies`): built-in mannequins have fixed ids (`mannequin_male`, `mannequin_female`, `owner_id` None); user bodies (plan 16) get uuids and an owner. Each pose = transparent PNG (`image_key`, `size`) + `keypoints` normalized 0..1 (x right, y down; `_l`/`_r` = the body's own side, so `_l` is on the image's right).
+- API: `GET /bodies/` (mannequins + mine), `GET /bodies/{id}` (someone else's → 404). `services/body.to_out` presigns pose images. Outfits take optional `body_id`/`pose_id`, validated by `_check_body` in `services/outfit.py`.
+- Assets are generated offline in `app/infra/body-assets/` (image `dress-me-up-body-assets`, ~5 GB, not in compose):
+  - `docker build -t dress-me-up-body-assets app/infra/body-assets`, then `docker run --rm -v <that dir>:/work dress-me-up-body-assets python render_bodies.py` (~1 min). Anny (Apache-2.0, MakeHuman CC0 assets; never the `[smpl]` extra) at phenotype 0.5 with gender 0/1, forearms straightened into the upper-arm line (A-pose), Cycles orthographic front render 1200×1800. Every body uses the same camera (`WORLD_H` 1.85 m, soles at y 0.97), so mannequins share scale and baseline. Keypoints come from Anny joints + torso cross-sections (trimesh); girths in `measurements_cm`.
+  - Seed: `docker compose -f app/infra/compose/compose.yaml run --rm --no-deps -v <repo>/app/infra/body-assets:/assets worker python /assets/seed.py`. Keys are `bodies/<id>/<pose>-<sha10>.png`: clients cache images by key, so a re-render must change it. The seed deletes the previous object.
+  - Anny: Z up, front = −Y, `.L` = +X. Pose params are per-bone 4×4 in `local-ref`; `return_bone_ends` isn't supported, so read joints from `bone_poses[..., :3, 3]`.
+
 ## Worker (plan 04)
 
 - Flow: client uploads to S3 → `POST /images/{id}/uploaded` (asset `ready`, job queued via `common/queue.publish`) → worker: `processing` → `processed` (or `failed` after 3 attempts) → client polls `GET /images/{id}` for `status`, the cutout URL and suggestions (`colors`, `tags`, `category`). Item create/update also claims the asset (`attached=True`, once) and queues it if the client skipped `/uploaded`.

@@ -10,6 +10,8 @@ class CreateOutfit(BaseModel):
     name: str = Field(min_length=1)
     wardrobe_id: Optional[str] = None
     items: List[models.OutfitItem] = Field(min_length=1)
+    body_id: Optional[str] = None   # dressed on this body (plan 12/13)
+    pose_id: Optional[str] = None
 
 
 class UpdateOutfit(BaseModel):
@@ -17,3 +19,5 @@ class UpdateOutfit(BaseModel):
     (the editor always saves the full canvas)."""
     name: Optional[str] = Field(default=None, min_length=1)
     items: Optional[List[models.OutfitItem]] = Field(default=None, min_length=1)
+    body_id: Optional[str] = None
+    pose_id: Optional[str] = None

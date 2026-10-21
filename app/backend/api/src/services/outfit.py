@@ -14,6 +14,7 @@ from app.backend.api.src.repositories import (
 )
 from app.backend.api.src.services import wardrobe as wardrobe_service
 from app.backend.api.src.services import image as image_service
+from app.backend.api.src.services import body as body_service
 from app.backend.api.src.services.wardrobe import EDITORS
 
 
@@ -97,6 +98,18 @@ def _validate_items(
             raise _forbidden(f"You don't have access to item '{item.name}'")
 
 
+def _check_body(db: Database, user_id: str, body_id, pose_id) -> None:
+    """The body must be visible to the user and have that pose"""
+    if not body_id:
+        return
+    body = body_service.get_body(db, body_id, user_id)
+    if pose_id and pose_id not in body.poses:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Body {body_id} has no pose '{pose_id}'"
+        )
+
+
 def to_out(db: Database, outfits: List[models.Outfit]) -> List[dto_out.OutfitOut]:
     """Attach item summaries (name, categories, image URL) and the preview
     URL, with one item query and one image query for the whole list."""
@@ -173,6 +186,7 @@ def create_outfit(
             user_id, EDITORS, "create outfits"
         )
     _validate_items(db, user_id, request.wardrobe_id, request.items)
+    _check_body(db, user_id, request.body_id, request.pose_id)
     outfit = models.Outfit(**request.model_dump(), owner_id=user_id)
     _db("Error creating outfit", outfits_repo.insert_outfit, db, outfit)
     return outfit
@@ -188,6 +202,9 @@ def update_outfit(
     _require_edit(db, outfit, user_id)
     if request.items is not None:
         _validate_items(db, user_id, outfit.wardrobe_id, request.items)
+    if request.body_id or request.pose_id:
+        _check_body(db, user_id, request.body_id or outfit.body_id,
+                    request.pose_id or outfit.pose_id)
     update_data = request.model_dump(exclude_unset=True, exclude_none=True)
     if update_data:
         _db(

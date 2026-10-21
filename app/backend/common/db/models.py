@@ -128,6 +128,9 @@ class Outfit(BaseModel):
     items: List[OutfitItem] = Field(default_factory=list)
     image_asset_id: Optional[str] = None  # preview image
     shared: bool = False  # only shared outfits appear in friends' feed
+    # plan 12/13: dressed on this body/pose; None = free-canvas outfit
+    body_id: Optional[str] = None
+    pose_id: Optional[str] = None
 
     created_at: UtcDatetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
@@ -166,6 +169,39 @@ class ImageAsset(BaseModel):
     )
 
     COLLECTION_NAME: ClassVar[str] = "image_assets"
+
+    class Config:
+        populate_by_name = True
+
+
+class BodyKind(str, Enum):
+    MANNEQUIN = "mannequin"
+    USER = "user"
+
+
+class BodyPose(BaseModel):
+    """One rendered pose: transparent PNG + named keypoints, normalized 0..1
+    in the image (x right, y down). left/right = the body's own left/right."""
+    image_key: str
+    size: List[int]  # [width, height] in px
+    keypoints: Dict[str, List[float]]
+
+
+class Body(BaseModel):
+    """A body garments are fitted onto (plan 12): built-in mannequins
+    (owner_id None, fixed ids) and later the user's own body (plan 16)."""
+    id: str = Field(default_factory=generate_id, alias="_id")
+    owner_id: Optional[str] = None
+    kind: BodyKind = BodyKind.MANNEQUIN
+    gender: str  # male | female
+    format: int = 1
+    poses: Dict[str, BodyPose]
+    measurements_cm: Dict[str, float] = Field(default_factory=dict)
+    created_at: UtcDatetime = Field(
+        default_factory=lambda: datetime.now(timezone.utc)
+    )
+
+    COLLECTION_NAME: ClassVar[str] = "bodies"
 
     class Config:
         populate_by_name = True

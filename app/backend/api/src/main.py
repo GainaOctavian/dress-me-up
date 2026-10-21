@@ -13,6 +13,7 @@ from app.backend.api.src.routes import item
 from app.backend.api.src.routes import image
 from app.backend.api.src.routes import outfit
 from app.backend.api.src.routes import meta
+from app.backend.api.src.routes import body
 from app.backend.common.db import models
 from app.backend.common.db.db import get_db
 
@@ -27,6 +28,7 @@ INDEXES = [
     (models.Outfit.COLLECTION_NAME, "owner_id", {}),
     (models.Outfit.COLLECTION_NAME, "wardrobe_id", {}),
     (models.Outfit.COLLECTION_NAME, "items.item_id", {}),
+    (models.Body.COLLECTION_NAME, "owner_id", {}),
 ]
 
 
@@ -67,6 +69,7 @@ app.include_router(item.router)
 app.include_router(image.router)
 app.include_router(outfit.router)
 app.include_router(meta.router)
+app.include_router(body.router)
 
 
 @app.get("/", include_in_schema=False)
