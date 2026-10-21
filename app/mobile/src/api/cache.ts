@@ -38,6 +38,10 @@ export function writeCache(key: string, value: unknown) {
   void AsyncStorage.setItem(key, JSON.stringify(value));
 }
 
+export function dropCache(key: string) {
+  void AsyncStorage.removeItem(key);
+}
+
 export async function clearCache() {
   const keys = await AsyncStorage.getAllKeys();
   await AsyncStorage.multiRemove(keys.filter((k) => k.startsWith(PREFIX)));

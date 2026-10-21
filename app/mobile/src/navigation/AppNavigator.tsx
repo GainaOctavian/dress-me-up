@@ -5,7 +5,7 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { ProfileScreen } from "../screens/profile/ProfileScreen";
 import { WardrobeNavigator } from "./WardrobeNavigator";
-import OutfitsScreen from "../screens/outfits/OutfitsScreen";
+import { OutfitsNavigator } from "./OutfitsNavigator";
 import SocialFeedScreen from "../screens/social/SocialFeedScreen";
 import { useTheme } from "../hooks/useTheme";
 
@@ -41,7 +41,7 @@ export const AppNavigator = () => {
       })}
     >
       <Tab.Screen name="Wardrobe" component={WardrobeNavigator} />
-      <Tab.Screen name="Outfits" component={OutfitsScreen} />
+      <Tab.Screen name="Outfits" component={OutfitsNavigator} />
       <Tab.Screen name="Social" component={SocialFeedScreen} />
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>

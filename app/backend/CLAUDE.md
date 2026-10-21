@@ -62,6 +62,14 @@ Auth: `AUTH` (OAuth2 bearer, JWT `sub` = user id) and `DB` are `Annotated` depen
 - SeaweedFS answers a presigned-POST policy mismatch (wrong content type) with 307 instead of 403, but stores nothing. Too large → 400 `EntityTooLarge`.
 - Known orphans: assets uploaded but never attached (user picked a photo, then cancelled) stay `pending_upload`. The worker sweeper (plan 04) deletes those older than 24h.
 
+## Outfits (plan 05)
+
+- `Outfit.items` is embedded (`OutfitItem` + normalized `Transform`). `PUT` replaces the whole list; there are no per-item endpoints.
+- Access (`services/outfit.py`): wardrobe outfits are readable by any member and editable by editor+. Personal outfits (`wardrobe_id=None`) belong to their owner only. `GET /outfits/me` = my outfits + outfits of every wardrobe I'm in.
+- `_validate_items` on every write: items exist and are unique; in that wardrobe (wardrobe outfit), or owned/visible to the caller (personal).
+- Cascades: removing an item from a wardrobe pulls it from that wardrobe's outfits; deleting an item pulls it from all outfits; deleting a wardrobe turns its outfits into personal outfits of their creators (`detach_outfits_from_wardrobe`).
+- Responses are `OutfitOut` with `item_refs {item_id: {name, categories, image_url}}` and `preview_url`, built by `outfit_service.to_out` (one item query + one image query per list), so clients can draw an outfit without fetching items.
+
 ## Access
 
 - Every route except `POST /users/` and `POST /auth/token` needs `AUTH`. `GET /wardrobes/{id}` is members-only (`get_wardrobe_for_member`, 403 otherwise); there's no list-all endpoint for users or wardrobes, and users can only modify/delete themselves via `/users/me`.

@@ -9,6 +9,7 @@ from app.backend.api.src.routes import user
 from app.backend.api.src.routes import wardrobe
 from app.backend.api.src.routes import item
 from app.backend.api.src.routes import image
+from app.backend.api.src.routes import outfit
 from app.backend.common.db import models
 from app.backend.common.db.db import get_db
 
@@ -20,6 +21,9 @@ INDEXES = [
     # wardrobes are looked up by roles.<user_id>; keys are dynamic
     (models.Wardrobe.COLLECTION_NAME, "roles.$**", {}),
     (models.User.COLLECTION_NAME, "email", {"unique": True}),
+    (models.Outfit.COLLECTION_NAME, "owner_id", {}),
+    (models.Outfit.COLLECTION_NAME, "wardrobe_id", {}),
+    (models.Outfit.COLLECTION_NAME, "items.item_id", {}),
 ]
 
 
@@ -47,6 +51,7 @@ app.include_router(auth.router)
 app.include_router(wardrobe.router)
 app.include_router(item.router)
 app.include_router(image.router)
+app.include_router(outfit.router)
 
 
 @app.get("/", include_in_schema=False)

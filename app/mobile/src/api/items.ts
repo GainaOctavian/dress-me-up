@@ -1,11 +1,15 @@
 import { apiClient } from "./client";
-import { cached, cacheKey, readCache, writeCache } from "./cache";
+import { cached, cacheKey, dropCache, readCache, writeCache } from "./cache";
 import {
   Item,
   ItemListResponse,
   ItemPayload,
   ItemResponse,
 } from "../types/item";
+
+// The backend pulls removed/deleted items out of outfits, so cached
+// outfits would still show them: drop that cache when items go away.
+const OUTFITS_KEY = cacheKey("outfits:mine");
 
 const wardrobeItemsKey = (wardrobeId: string) =>
   cacheKey(`wardrobe-items:${wardrobeId}`);
@@ -85,6 +89,7 @@ export async function removeItemFromWardrobe(
     token
   );
   await patchWardrobeItems(wardrobeId, without(itemId));
+  dropCache(OUTFITS_KEY);
   return item;
 }
 
@@ -93,6 +98,7 @@ export async function deleteItem(token: string, item: Item): Promise<void> {
   for (const wardrobeId of item.wardrobe_ids) {
     await patchWardrobeItems(wardrobeId, without(item._id));
   }
+  dropCache(OUTFITS_KEY);
 }
 
 // Always fresh: only used by the "Add from my items" picker.

@@ -9,7 +9,8 @@ from app.backend.api.src.dto.input import wardrobe as dto_in
 from app.backend.api.src.repositories import (
     wardrobe as wardrobes_repo,
     user as users_repo,
-    item as items_repo
+    item as items_repo,
+    outfit as outfits_repo
 )
 
 OWNER_ONLY = {models.WardrobeRole.OWNER}
@@ -267,8 +268,10 @@ def delete_wardrobe(db: Database, wardrobe_id: str, user_id: str) -> None:
         )
     try:
         wardrobes_repo.delete_wardrobe_by_id(db, wardrobe_id)
-        # items survive their wardrobe; just drop the reference
+        # items and outfits survive their wardrobe; outfits become
+        # personal outfits of whoever created them
         items_repo.pull_wardrobe_from_items(db, wardrobe_id)
+        outfits_repo.detach_outfits_from_wardrobe(db, wardrobe_id)
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_424_FAILED_DEPENDENCY,

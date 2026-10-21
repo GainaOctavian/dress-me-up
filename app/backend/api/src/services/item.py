@@ -9,6 +9,7 @@ from app.backend.api.src.dto.input import item as dto_in
 from app.backend.api.src.repositories import (
     item as items_repo,
     wardrobe as wardrobes_repo,
+    outfit as outfits_repo,
 )
 from app.backend.api.src.services import wardrobe as wardrobe_service
 from app.backend.api.src.services import image as image_service
@@ -181,6 +182,11 @@ def remove_item_from_wardrobe(
         f"Error removing item {item_id} from wardrobe {wardrobe_id}",
         items_repo.remove_item_from_wardrobe, db, item_id, wardrobe_id
     )
+    # that wardrobe's outfits can't use it anymore
+    _db(
+        "Error updating outfits",
+        outfits_repo.pull_item_from_outfits, db, item_id, wardrobe_id
+    )
     return _get_item(db, item_id)
 
 
@@ -192,4 +198,5 @@ def delete_item(db: Database, item_id: str, user_id: str) -> None:
         f"Error deleting item with id {item_id}",
         items_repo.delete_item_by_id, db, item_id
     )
+    _db("Error updating outfits", outfits_repo.pull_item_from_outfits, db, item_id)
     image_service.delete_asset(db, item.image_asset_id)

@@ -8,6 +8,11 @@ def find_item_by_id(db: Database, item_id: str):
     return collection.find_one({"_id": item_id})
 
 
+def find_items_by_ids(db: Database, item_ids: list):
+    collection = db.get_collection(models.Item.COLLECTION_NAME)
+    return collection.find({"_id": {"$in": item_ids}}).to_list()
+
+
 def find_items_by_owner(db: Database, owner_id: str):
     collection = db.get_collection(models.Item.COLLECTION_NAME)
     return collection.find({"owner_id": owner_id}).to_list()

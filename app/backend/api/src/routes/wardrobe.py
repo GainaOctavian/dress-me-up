@@ -7,9 +7,11 @@ from app.backend.api.src.auth import auth_token
 from app.backend.api.src.auth.auth_token import AUTH
 from app.backend.api.src.services import wardrobe as service
 from app.backend.api.src.services import item as item_service
+from app.backend.api.src.services import outfit as outfit_service
 from app.backend.api.src.dto.input import wardrobe as dto_in
 from app.backend.api.src.dto.output import wardrobe as dto_out
 from app.backend.api.src.dto.output import item as item_dto_out
+from app.backend.api.src.dto.output import outfit as outfit_dto_out
 
 router = APIRouter(prefix="/api/v1/wardrobes", tags=["wardrobes"])
 
@@ -153,6 +155,18 @@ async def get_wardrobe_items(db: DB, token: AUTH, wardrobe_id: str):
     current_user_id = auth_token.get_user_id_from_token(token)
     items = item_service.get_wardrobe_items(db, wardrobe_id, current_user_id)
     return item_dto_out.GetAllItems(items=item_service.to_out(db, items))
+
+
+@router.get("/{wardrobe_id}/outfits",
+            status_code=status.HTTP_200_OK,
+            response_model=outfit_dto_out.GetAllOutfits)
+async def get_wardrobe_outfits(db: DB, token: AUTH, wardrobe_id: str):
+    """Get outfits in a wardrobe (members only)"""
+    current_user_id = auth_token.get_user_id_from_token(token)
+    outfits = outfit_service.get_wardrobe_outfits(db, wardrobe_id, current_user_id)
+    return outfit_dto_out.GetAllOutfits(
+        outfits=outfit_service.to_out(db, outfits)
+    )
 
 
 @router.put("/{wardrobe_id}/items/{item_id}",
