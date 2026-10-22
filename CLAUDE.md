@@ -7,7 +7,7 @@ Wardrobe / outfit app: FastAPI + MongoDB backend, Expo (React Native) mobile cli
 - `app/backend/api/` — the FastAPI service (the only backend that does anything today). See `app/backend/CLAUDE.md`.
 - `app/backend/common/` — code shared across backend services: Mongo models (`db/models.py`), DB dependency (`db/db.py`), id/password helpers (`stringproc/`).
 - `app/backend/worker/` — image worker (RabbitMQ consumer): background removal + indigo glow, color/tag/category suggestions (CLIP). See `app/backend/CLAUDE.md` → Worker.
-- `app/backend/renderer/` — 3D renderer (RabbitMQ consumer, plan 19): dresses the Anny mannequin with 3D garments (MakeHuman CC0, `app/infra/clothes/`) textured from the item photos, short gravity-free cloth sim against clipping, Blender render per outfit/pose. See `app/backend/CLAUDE.md` → 3D renderer.
+- `app/backend/renderer/` — 3D renderer (RabbitMQ consumer, plan 19): dresses the Anny mannequin with 3D garments (MakeHuman CC0/CC-BY, `app/infra/clothes/`) textured from the item photos taken apart into colour / seamless pattern tile / print decals (`fabric.py`), short gravity-free cloth sim against clipping, Blender render per outfit/pose. See `app/backend/CLAUDE.md` → 3D renderer.
 - `app/backend/file-service/` — placeholder, empty `main.py`.
 - `app/infra/body-assets/` — offline mannequin pipeline (Anny + Blender `bpy` in Docker): `render_bodies.py` → `out/` (committed renders + keypoints), `seed.py` uploads them. See `app/backend/CLAUDE.md` → Bodies.
 - `app/mobile/` — Expo app. See `app/mobile/CLAUDE.md`.

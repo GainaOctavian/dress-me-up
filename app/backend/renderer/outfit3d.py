@@ -1,9 +1,11 @@
-"""Dress the 3D mannequin like a game character (plan 19, v4).
+"""Dress the 3D mannequin like a game character (plan 19, v5).
 
-Every item type wears a modelled 3D garment (MakeHuman CC0 clothes in
-app/infra/clothes, bound to the body through .mhclo, so it follows any
-shape and pose); the item's photo is its texture (front projection,
-mhclo.photo_uv) and the back gets the photo's cloth colour. A short
+Every item type wears a modelled 3D garment (MakeHuman CC0 / CC-BY clothes
+in app/infra/clothes, bound to the body through .mhclo, so it follows any
+shape and pose). The item's photo is taken apart (fabric.py): the cloth's
+colour or a seamless tile of its pattern covers the whole garment at real
+scale, and prints/logos/pockets go on the front where they are on the
+photo, unstretched. A short
 cloth simulation without gravity pushes every layer out of the body and
 the layers under it (no clipping), then Blender takes the picture.
 
@@ -16,7 +18,7 @@ from typing import List
 
 import numpy as np
 
-from app.backend.renderer import dress, mhclo
+from app.backend.renderer import dress, fabric, mhclo
 
 CLOTHES = Path(os.getenv("CLOTHES", "/clothes"))
 
@@ -25,10 +27,12 @@ MODEL = {
     **dict.fromkeys(["t_shirt", "undershirt", "tank_top", "top", "blouse"],
                     ("elvs_crude_t-shirt_male", "joepal_crude_t-shirt_female")),
     "polo": ("namuhekam_male_polo_shirt", "joepal_crude_t-shirt_female"),
-    # no button-up shirts / jackets / coats in the CC0 packs yet: long-sleeved knit
-    **dict.fromkeys(["shirt", "sweater", "sweatshirt", "hoodie", "cardigan", "blazer", "jacket",
-                     "denim_jacket", "leather_jacket", "bomber", "gilet", "puffer", "coat", "parka",
-                     "trench"], ("toigo_fisherman_sweater",) * 2),
+    # collared, buttoned: closest model for shirts and jackets (CC-BY, see app/infra/clothes)
+    **dict.fromkeys(["shirt", "blazer", "jacket", "denim_jacket", "leather_jacket", "bomber", "gilet",
+                     "puffer"], ("elvs_male_shirt_untucked_bd1",) * 2),
+    **dict.fromkeys(["sweatshirt", "hoodie"], ("elvs_hooded_sweat_jacket1",) * 2),
+    "sweater": ("mindfront_knitted_sweater_02",) * 2,
+    **dict.fromkeys(["cardigan", "coat", "parka", "trench"], ("mindfront_cardigan_long_open_front",) * 2),
     **dict.fromkeys(["jeans", "trousers", "chinos", "sweatpants", "leggings", "tights"], ("toigo_wool_pants",) * 2),
     "shorts": ("cortu_jeans_shorts",) * 2,
     "skirt": ("toigo_tiered_mini_skirt",) * 2,
@@ -36,6 +40,9 @@ MODEL = {
     **dict.fromkeys(["sneakers", "boots", "dress_shoes", "loafers", "sandals", "heels", "socks"],
                     ("toigo_ankle_boots_male", "toigo_flats")),
 }
+
+
+OPEN = {"F_Cardigan_Long_Open_Front"}  # open-front models: what's under them shows
 
 
 @lru_cache(maxsize=1)
@@ -94,36 +101,60 @@ def render_outfit(body_id: str, pose_id: str, garments: List[dress.Garment], out
     collider.hide_render = True
     colliders = [collider]
 
+    # untucked closed tops hide the trousers' waist under them: not drawn,
+    # or it pokes through the hem (like delete_verts does for the skin)
+    centre = neutral[:mhclo.BODY_VERTS, :2].mean(axis=0)
+    sector = lambda v: ((np.arctan2(*(v[:, :2] - centre).T[::-1]) + np.pi) / (2 * np.pi) * 36).astype(int) % 36
+
+    def hem(v):  # lowest point of a top, per 10 degrees round the body
+        out = np.full(36, np.inf)
+        np.minimum.at(out, sector(v), v[:, 2])
+        return out
+    hems = [hem(c.fit(neutral)) if g.slot not in ("legs", "feet") and c.name not in OPEN else None
+            for g, c in wearing]
     tmp = tempfile.mkdtemp()
     for i, (g, c) in enumerate(wearing):
         shoes = g.slot == "feet"
         kind = "legs" if g.slot == "legs" else "top"
         vn, vp = c.fit(neutral), c.fit(posed)
         tv, tu = c.triangles()
-        colour = g.color
-        if g.image is not None:
-            opaque = g.image[g.image[..., 3] > 200][:, :3]
-            if len(opaque):
-                colour = tuple(np.median(opaque, axis=0) / 255)
-        puv = None
-        if not shoes and g.image is not None and g.fit:
-            puv = mhclo.photo_uv(dress.to_px(vn, cam_n), kind, k, g.fit, g.image.shape[:2], g.image[..., 3] > 128)
+        over = [h for h in hems[i + 1:] if h is not None]
+        if kind == "legs" and over:
+            cut = np.min(over, axis=0)[sector(vn)] + 0.01
+            shown = ~(vn[:, 2] > cut)[tv].all(axis=1)
+            tv, tu = tv[shown], tu[shown]
         mesh = bpy.data.meshes.new(c.name)
         mesh.from_pydata(vp.tolist(), [], tv.tolist())
         mesh.polygons.foreach_set("use_smooth", [True] * len(mesh.polygons))
         mesh.uv_layers.new(name="uv").data.foreach_set("uv", c.uvs[tu.ravel()].astype(np.float32).ravel())
         detail = c.texture if c.texture and os.path.exists(c.texture) else None
-        if puv is not None:
-            mesh.uv_layers.new(name="photo").data.foreach_set("uv", puv[tv.ravel()].astype(np.float32).ravel())
-            path = os.path.join(tmp, f"photo{i}.png")
-            Image.fromarray(mhclo.fill_photo(g.image)).save(path)
-            mesh.materials.append(mhclo.photo_material(f"front{i}", path, detail))
-            mesh.materials.append(mhclo.photo_material(f"back{i}", None, detail, colour))
-            # faces seen from the front (and the shoulders' tops) get the photo
+        fab = fabric.analyse(g.image) if g.image is not None else fabric.Fabric(g.color)
+        px = dress.to_px(vn, cam_n)
+        q = fabric.photo_coords(px, mhclo.landmarks(px, kind, k), g.fit, g.image.shape[:2]) \
+            if not shoes and g.image is not None and g.fit else None
+        if q is None:  # no photo anchors: shoes, or old items - colour only
+            fab = fabric.Fabric(fab.colour)
+            q = px
+
+        def uv_layer(name, uv):
+            mesh.uv_layers.new(name=name).data.foreach_set("uv", uv[tv.ravel()].astype(np.float32).ravel())
+
+        tile = decals = None
+        if fab.tile is not None:  # repeats at its real size (photo px)
+            th, tw = fab.tile.shape[:2]
+            uv_layer("tile", np.stack([q[:, 0] / tw, -q[:, 1] / th], axis=1))
+            tile = os.path.join(tmp, f"tile{i}.png")
+            Image.fromarray(fab.tile).save(tile)
+        if fab.decals is not None:  # where they are on the photo, unstretched
+            ph, pw = fab.decals.shape[:2]
+            uv_layer("decal", np.stack([q[:, 0] / pw, 1 - q[:, 1] / ph], axis=1))
+            decals = os.path.join(tmp, f"decals{i}.png")
+            Image.fromarray(fab.decals).save(decals)
+        mesh.materials.append(mhclo.material(f"front{i}", fab.colour, tile, decals, detail))
+        if decals:  # prints only on faces seen from the front (camera at -y)
+            mesh.materials.append(mhclo.material(f"back{i}", fab.colour, tile, None, detail))
             fn = trimesh.Trimesh(vn, tv, process=False).face_normals
             mesh.polygons.foreach_set("material_index", ((fn[:, 1] > -0.2) & (fn[:, 2] < 0.6)).astype(int).tolist())
-        else:
-            mesh.materials.append(mhclo.photo_material(f"plain{i}", None, detail, colour))
         mesh.update()
         obj = bpy.data.objects.new(c.name, mesh)
         scene.collection.objects.link(obj)

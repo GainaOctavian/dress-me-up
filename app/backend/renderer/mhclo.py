@@ -116,6 +116,9 @@ def load(mhclo_path: str) -> Clothes:
         if key in meta:
             a, b, ref = meta[key][0]
             scales[axis] = (int(a), int(b), float(ref))
+        elif f"l_shear_{key[0]}" in meta:  # newer MakeClothes: "a b x1 x2", scale = (B[a]-B[b]) / (x1-x2)
+            a, b, x1, x2 = meta[f"l_shear_{key[0]}"][0]
+            scales[axis] = (int(a), int(b), abs(float(x1) - float(x2)))
     obj = path.parent / meta["obj_file"][0][0]
     faces, face_uvs, uvs = [], [], []
     for line in obj.read_text(encoding="utf-8", errors="replace").splitlines():
@@ -163,7 +166,7 @@ def settle(scene, obj, colliders, pin_top: float = 0.0):
     for c in colliders:
         if "collision" not in c.modifiers:
             c.modifiers.new("collision", "COLLISION")
-            c.collision.thickness_outer = 0.003
+            c.collision.thickness_outer = 0.004
             c.collision.cloth_friction = 10.0  # sleeves mustn't slide down slanted arms
     mod = obj.modifiers.new("cloth", "CLOTH")
     s = mod.settings
@@ -178,7 +181,7 @@ def settle(scene, obj, colliders, pin_top: float = 0.0):
     s.air_damping = 1.0
     c = mod.collision_settings
     c.use_collision = True
-    c.distance_min = 0.004
+    c.distance_min = 0.005
     c.use_self_collision = False
     if pin_top > 0:
         z = np.array([v.co.z for v in obj.data.vertices])
@@ -195,31 +198,47 @@ def settle(scene, obj, colliders, pin_top: float = 0.0):
         scene.frame_set(f)
     depsgraph = bpy.context.evaluated_depsgraph_get()
     mesh = bpy.data.meshes.new_from_object(obj.evaluated_get(depsgraph))
+    _carry_small_parts(obj.data, mesh)
     done = bpy.data.objects.new(obj.name + "_settled", mesh)
     scene.collection.objects.link(done)
     bpy.data.objects.remove(obj)
     return done
 
 
-def push_out(verts: np.ndarray, surface: np.ndarray, normals: np.ndarray, gap: float = 0.006) -> np.ndarray:
-    """Move garment vertices that sit inside or too close to a surface (the
-    body, the layers below) out along its normal to `gap`: a simulation that
-    starts with cloth inside a collider throws it away."""
-    from scipy.spatial import cKDTree
-    _, idx = cKDTree(surface).query(verts)
-    n = normals[idx]
-    depth = ((verts - surface[idx]) * n).sum(axis=1)
-    lift = np.clip(gap - depth, 0, None)
-    return verts + n * lift[:, None]
-
-
 # ---------------------------------------------------------------- photo texture
 # A front flat-lay photo looks like the garment seen from the front in the
-# neutral pose: the same landmarks (collar, shoulders, sleeve ends, hem,
-# waistband) are found on the 3D garment's front projection, and a TPS maps
-# that projection onto the photo. Faces looking at the camera get the photo,
-# the others the photo's cloth colour. The MakeHuman texture's shading
-# (seams, folds) is kept by multiplying.
+# neutral pose: the same landmarks (collar, shoulders, hem, waistband) are
+# found on the 3D garment's front projection, so fabric.photo_coords can
+# place the photo on it. The MakeHuman texture's shading (seams, folds) is
+# kept by multiplying.
+
+def _carry_small_parts(before, after, small: float = 0.2):
+    """Buttons, cuffs, pocket flaps (loose parts under `small` of the biggest
+    piece) have nothing holding them in the simulation and fly off: move
+    them like the nearest bit of the big pieces instead."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    from scipy.spatial import cKDTree
+    n = len(before.vertices)
+    if n != len(after.vertices):
+        return
+    co0, co1 = np.zeros(n * 3), np.zeros(n * 3)
+    before.vertices.foreach_get("co", co0)
+    after.vertices.foreach_get("co", co1)
+    co0, co1 = co0.reshape(-1, 3), co1.reshape(-1, 3)
+    e = np.zeros(len(before.edges) * 2, int)
+    before.edges.foreach_get("vertices", e)
+    e = e.reshape(-1, 2)
+    _, part = connected_components(coo_matrix((np.ones(len(e)), (e[:, 0], e[:, 1])), shape=(n, n)))
+    sizes = np.bincount(part)
+    loose = sizes[part] < small * sizes.max()
+    if not loose.any() or loose.all():
+        return
+    _, near = cKDTree(co0[~loose]).query(co0[loose])
+    co1[loose] = co0[loose] + (co1[~loose] - co0[~loose])[near]
+    after.vertices.foreach_set("co", co1.ravel())
+    after.update()
+
 
 def landmarks(px: np.ndarray, kind: str, k: dict) -> dict:
     """Garment landmarks on its front projection (body image px, y down),
@@ -273,93 +292,44 @@ def landmarks(px: np.ndarray, kind: str, k: dict) -> dict:
     return out
 
 
-def photo_legs(mask: np.ndarray, fit: dict) -> dict:
-    """Crotch and leg centres on a trousers photo (px), like `landmarks`."""
-    h, w = mask.shape
-    tl, tr = np.array(fit["top_l"]) * [w, h], np.array(fit["top_r"]) * [w, h]
-    hem = max(fit["hem_l"][1], fit["hem_r"][1]) * h
-    cx = (tl[0] + tr[0]) / 2
-    col = mask[int(tl[1]):int(hem), min(int(cx), w - 1)]
-    on = int(np.argmax(col))
-    gap = np.flatnonzero(~col[on:])
-    rise = (on + gap[0]) / max(1.0, hem - tl[1]) if len(gap) else 1.0
-    crotch = tl[1] + (on + gap[0] if 0.15 < rise < 0.6 else 0.3 * (hem - tl[1]))  # overlapping legs: typical rise
-    out = {"crotch": [cx / w, crotch / h]}
-    for t, name in ((0.5, "knee"), (0.95, "shin")):
-        yy = int(crotch + t * (hem - crotch))
-        cols = np.flatnonzero(mask[min(yy, h - 1)])
-        if len(cols) < 2:
-            continue
-        split = (cols.min() + cols.max()) / 2  # each half of the row is one leg
-        for s, sel in (("l", cols >= split), ("r", cols < split)):
-            out[f"{name}_{s}"] = [float(cols[sel].mean()) / w, yy / h]
-    return out
-
-
-def photo_uv(px: np.ndarray, kind: str, k: dict, photo_fit: dict, photo_shape, mask=None) -> Optional[np.ndarray]:
-    """UV into the photo for each projected garment vertex (v up)."""
-    from scipy.interpolate import RBFInterpolator
-    ph, pw = photo_shape
-    garment = landmarks(px, kind, k)
-    if kind == "legs" and mask is not None and "top_l" in photo_fit:
-        photo_fit = {**photo_fit, **photo_legs(mask, photo_fit)}
-    keys = [n for n in ("collar", "shoulder_l", "shoulder_r", "sleeve_l", "sleeve_r", "hem_l", "hem_r", "top_l", "top_r",
-                        "crotch", "knee_l", "knee_r", "shin_l", "shin_r")
-            if n in garment and isinstance(photo_fit.get(n), list)]
-    if kind != "legs":
-        keys = [n for n in keys if not n.startswith("top_")]  # photo top_l/r = neckline, not comparable
-    if len(keys) < 3:
-        return None
-    src = np.array([garment[n] for n in keys], float)
-    dst = np.array([photo_fit[n] for n in keys], float) * [pw, ph]
-    c_s, c_d = src.mean(axis=0), dst.mean(axis=0)
-    src, dst = np.vstack([src, (src + c_s) / 2, c_s]), np.vstack([dst, (dst + c_d) / 2, c_d])
-    kernel = "thin_plate_spline" if len(src) >= 5 else "linear"
-    out = RBFInterpolator(src, dst, kernel=kernel, smoothing=1.0)(px)
-    return np.clip(np.stack([out[:, 0] / pw, 1 - out[:, 1] / ph], axis=1), 0, 1)
-
-
-def fill_photo(image: np.ndarray) -> np.ndarray:
-    """Every transparent pixel takes the nearest cloth pixel's colour, so
-    any part of the 3D garment the photo doesn't cover still gets cloth."""
-    from scipy import ndimage
-    cloth = image[..., 3] > 128
-    _, (iy, ix) = ndimage.distance_transform_edt(~cloth, return_indices=True)
-    out = image[iy, ix].copy()
-    out[..., 3] = 255
-    return out
-
-
-def photo_material(name, photo_path, detail_path=None, colour=None):
-    """Front: the photo (UV map "photo"); back: `colour`. Either way times
-    the MakeHuman texture's luminance (UV map "uv"), for seams and folds."""
+def material(name, colour, tile_path=None, decals_path=None, detail_path=None):
+    """Base (`colour`, or the seamless `tile` repeated on UV map "tile"),
+    prints over it (`decals`, UV map "decal", clipped), times the MakeHuman
+    texture's luminance (UV map "uv")."""
     import bpy
     mat = bpy.data.materials.new(name)
     mat.use_nodes = True
     nodes, links = mat.node_tree.nodes, mat.node_tree.links
     bsdf = nodes["Principled BSDF"]
     bsdf.inputs["Roughness"].default_value = 0.85
-    if colour is not None:
+
+    def image(path, uv_map, extension, non_colour=False):
+        tex = nodes.new("ShaderNodeTexImage")
+        tex.image = bpy.data.images.load(path)
+        if non_colour:
+            tex.image.colorspace_settings.name = "Non-Color"
+        tex.extension = extension
+        uvm = nodes.new("ShaderNodeUVMap")
+        uvm.uv_map = uv_map
+        links.new(uvm.outputs["UV"], tex.inputs["Vector"])
+        return tex
+
+    if tile_path:
+        base_out = image(tile_path, "tile", "REPEAT").outputs["Color"]
+    else:
         base = nodes.new("ShaderNodeRGB")
         base.outputs[0].default_value = (*[c ** 2.2 for c in colour], 1)
         base_out = base.outputs[0]
-    else:
-        tex = nodes.new("ShaderNodeTexImage")
-        tex.image = bpy.data.images.load(photo_path)
-        tex.extension = "EXTEND"
-        uvm = nodes.new("ShaderNodeUVMap")
-        uvm.uv_map = "photo"
-        links.new(uvm.outputs["UV"], tex.inputs["Vector"])
-        base_out = tex.outputs["Color"]
+    if decals_path:
+        dec = image(decals_path, "decal", "CLIP")
+        over = nodes.new("ShaderNodeMixRGB")
+        links.new(dec.outputs["Alpha"], over.inputs["Fac"])
+        links.new(base_out, over.inputs["Color1"])
+        links.new(dec.outputs["Color"], over.inputs["Color2"])
+        base_out = over.outputs["Color"]
     if detail_path:
-        det = nodes.new("ShaderNodeTexImage")
-        det.image = bpy.data.images.load(detail_path)
-        det.image.colorspace_settings.name = "Non-Color"
-        uvd = nodes.new("ShaderNodeUVMap")
-        uvd.uv_map = "uv"
-        links.new(uvd.outputs["UV"], det.inputs["Vector"])
         bw = nodes.new("ShaderNodeRGBToBW")
-        links.new(det.outputs["Color"], bw.inputs["Color"])
+        links.new(image(detail_path, "uv", "REPEAT", non_colour=True).outputs["Color"], bw.inputs["Color"])
         # luminance around 1: shading from the model, colour from the photo
         norm = nodes.new("ShaderNodeMath")
         norm.operation = "MULTIPLY"

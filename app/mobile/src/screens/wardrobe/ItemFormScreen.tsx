@@ -258,6 +258,14 @@ export const ItemFormScreen: React.FC<Props> = ({ route, navigation }) => {
             </Text>
           )}
 
+          {editable && !analyzing && (
+            // the 3D render takes the colour, pattern and prints from this photo
+            <Text style={itemStyles.hint}>
+              Best photo: tops on a hanger against a plain wall, front to the camera, smoothed
+              out and whole in the frame. Trousers and skirts laid flat.
+            </Text>
+          )}
+
           {editable && (
             <View style={styles.buttonRow}>
               <TouchableOpacity
