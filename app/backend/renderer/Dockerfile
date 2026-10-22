@@ -26,6 +26,10 @@ COPY app/infra/body-assets/out/bodies.json /body-assets/bodies.json
 COPY app/infra/body-assets/out/mannequin_male/*.npy /body-assets/mannequin_male/
 COPY app/infra/body-assets/out/mannequin_female/*.npy /body-assets/mannequin_female/
 
+# 3D garment models (MakeHuman CC0, see app/infra/clothes/README.md)
+COPY app/infra/clothes /clothes
+ENV CLOTHES=/clothes
+
 COPY app/backend/common /app/backend/common
 COPY app/backend/renderer /app/backend/renderer
 

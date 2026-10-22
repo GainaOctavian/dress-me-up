@@ -21,7 +21,7 @@ from app.backend.common import layering, queue
 from app.backend.common.db import models
 from app.backend.common.db.db import get_db
 from app.backend.common.storage import s3
-from app.backend.renderer import dress
+from app.backend.renderer import dress, outfit3d
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(message)s")
 log = logging.getLogger("renderer")
@@ -67,7 +67,7 @@ def handle(outfit_id: str, version: int) -> None:
     started = time.monotonic()
     with tempfile.TemporaryDirectory() as tmp:
         png = os.path.join(tmp, "render.png")
-        dress.render_outfit(outfit.body_id, outfit.pose_id or "neutral", garments(db, outfit), png)
+        outfit3d.render_outfit(outfit.body_id, outfit.pose_id or "neutral", garments(db, outfit), png)
         buf = io.BytesIO()
         Image.open(png).save(buf, "WEBP", quality=90, method=6)
     webp = buf.getvalue()
@@ -102,7 +102,7 @@ def on_message(channel, method, _props, body):
 
 def main() -> None:
     log.info("loading Anny…")
-    dress._anny()
+    outfit3d._model()
     while True:  # reconnect forever: RabbitMQ may restart under us
         try:
             connection = pika.BlockingConnection(pika.URLParameters(queue.RABBITMQ_URL))
