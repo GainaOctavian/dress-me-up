@@ -116,8 +116,9 @@ def load(mhclo_path: str) -> Clothes:
         if key in meta:
             a, b, ref = meta[key][0]
             scales[axis] = (int(a), int(b), float(ref))
-        elif f"l_shear_{key[0]}" in meta:  # newer MakeClothes: "a b x1 x2", scale = (B[a]-B[b]) / (x1-x2)
-            a, b, x1, x2 = meta[f"l_shear_{key[0]}"][0]
+        elif f"l_shear_{key[0]}" in meta or f"shear_{key[0]}" in meta:
+            # newer MakeClothes: "a b x1 x2", scale = (B[a]-B[b]) / (x1-x2)
+            a, b, x1, x2 = (meta.get(f"l_shear_{key[0]}") or meta[f"shear_{key[0]}"])[0]
             scales[axis] = (int(a), int(b), abs(float(x1) - float(x2)))
     obj = path.parent / meta["obj_file"][0][0]
     faces, face_uvs, uvs = [], [], []
@@ -147,12 +148,12 @@ def load(mhclo_path: str) -> Clothes:
 SETTLE_FRAMES = 15
 
 
-def settle(scene, obj, colliders, pin_top: float = 0.0):
+def settle(scene, obj, colliders, hold: float = 0.0):
     """A short cloth simulation on a garment that already sits on the body:
     it pushes the cloth out of the body and the layers below (no clipping)
-    and lets it drape. `pin_top` > 0 holds the top band of that many metres
-    (waistbands) so trousers don't slide. Returns a static copy (the next
-    layer collides with it)."""
+    and lets it drape. `hold` (0..1) softly pins every vertex to the
+    modelled shape: tailored jackets otherwise spread open. Returns a static
+    copy (the next layer collides with it)."""
     import bmesh
     import bpy
     # some garments carry duplicate vertices (seams modelled as two edges at
@@ -183,12 +184,11 @@ def settle(scene, obj, colliders, pin_top: float = 0.0):
     c.use_collision = True
     c.distance_min = 0.005
     c.use_self_collision = False
-    if pin_top > 0:
-        z = np.array([v.co.z for v in obj.data.vertices])
-        top = np.flatnonzero(z > z.max() - pin_top)
+    if hold > 0:
         group = obj.vertex_groups.new(name="pin")
-        group.add([int(i) for i in top], 1.0, "REPLACE")
+        group.add(list(range(len(obj.data.vertices))), hold, "REPLACE")
         s.vertex_group_mass = "pin"
+        s.pin_stiffness = 1.0
     # no gravity: the point is only to push cloth out of what's under it
     # (clipping), not to let it slide or fall
     s.effector_weights.gravity = 0.0
@@ -234,8 +234,12 @@ def _carry_small_parts(before, after, small: float = 0.2):
     loose = sizes[part] < small * sizes.max()
     if not loose.any() or loose.all():
         return
-    _, near = cKDTree(co0[~loose]).query(co0[loose])
-    co1[loose] = co0[loose] + (co1[~loose] - co0[~loose])[near]
+    # each part moves in one piece, like the cloth nearest its centre: a
+    # button on the overlap of two fronts would otherwise stretch between them
+    tree, move = cKDTree(co0[~loose]), co1[~loose] - co0[~loose]
+    for i in np.unique(part[loose]):
+        sel = part == i
+        co1[sel] = co0[sel] + move[tree.query(co0[sel].mean(axis=0))[1]]
     after.vertices.foreach_set("co", co1.ravel())
     after.update()
 

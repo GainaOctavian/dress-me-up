@@ -80,6 +80,9 @@ def _scene():
     r = scene.render
     r.engine = "CYCLES"
     scene.cycles.device, scene.cycles.samples = "CPU", 48
+    # all cores starved Docker Desktop's VM (and everything in it) during renders
+    scene.render.threads_mode = "FIXED"
+    scene.render.threads = int(os.getenv("RENDER_THREADS", "8"))
     scene.cycles.use_denoising = True
     r.resolution_x, r.resolution_y, r.resolution_percentage = *SIZE, 100
     r.film_transparent = True
