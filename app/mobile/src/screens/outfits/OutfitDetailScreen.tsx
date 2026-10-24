@@ -13,13 +13,14 @@ import { NativeStackScreenProps } from "@react-navigation/native-stack";
 import { useAuth } from "../../hooks/useAuth";
 import { useTheme } from "../../hooks/useTheme";
 import { createWardrobeStyles } from "../../styles/wardrobe";
-import { deleteOutfit, getMyOutfits, getOutfit } from "../../api/outfits";
+import { deleteOutfit, getMyOutfits, getOutfit, updateOutfit } from "../../api/outfits";
 import { getAllRelatedWardrobes } from "../../api/wardrobes";
 import { errorMessage } from "../../api/client";
 import { Outfit } from "../../types/outfit";
 import { Wardrobe } from "../../types/wardrobe";
 import { OutfitCanvas } from "../../components/outfit/OutfitCanvas";
 import { confirmDestructive } from "../../utils/confirm";
+import { Chip } from "../../components/ui/Chip";
 import { OutfitsStackParamList } from "../../navigation/OutfitsNavigator";
 
 type Props = NativeStackScreenProps<OutfitsStackParamList, "OutfitDetail">;
@@ -100,6 +101,20 @@ export const OutfitDetailScreen: React.FC<Props> = ({ route, navigation }) => {
     : outfit.owner_id === user?.id;
   const missing = outfit.items.length - Object.keys(outfit.item_refs).length;
 
+  const isOwner = outfit.owner_id === user?.id;
+  const toggleShared = async () => {
+    if (!token) return;
+    setBusy(true);
+    setError(null);
+    try {
+      setOutfit(await updateOutfit(token, outfit._id, { shared: !outfit.shared }));
+    } catch (e) {
+      setError(errorMessage(e, "Could not change sharing. Please try again."));
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!token) return;
     const ok = await confirmDestructive(
@@ -130,7 +145,17 @@ export const OutfitDetailScreen: React.FC<Props> = ({ route, navigation }) => {
 
         {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-        <View style={styles.sectionCard}>
+        <TouchableOpacity
+          style={styles.sectionCard}
+          activeOpacity={0.85}
+          disabled={!outfit.model_url}
+          onPress={() =>
+            outfit.model_url &&
+            navigation.navigate("Outfit3D", { modelUrl: outfit.model_url, name: outfit.name })
+          }
+          accessibilityRole={outfit.model_url ? "button" : undefined}
+          accessibilityLabel={outfit.model_url ? "View in 3D" : undefined}
+        >
           <OutfitCanvas
             items={outfit.items}
             refs={outfit.item_refs}
@@ -140,7 +165,12 @@ export const OutfitDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             render={outfit.render}
             renderUrl={outfit.render_url}
           />
-        </View>
+          {outfit.model_url ? (
+            <Text style={[styles.memberSubtitle, { textAlign: "center", marginTop: 8 }]}>
+              Tap to view in 3D
+            </Text>
+          ) : null}
+        </TouchableOpacity>
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Items</Text>
@@ -160,6 +190,25 @@ export const OutfitDetailScreen: React.FC<Props> = ({ route, navigation }) => {
             </Text>
           )}
         </View>
+
+        {isOwner && (
+          <View style={styles.sectionCard}>
+            <View style={styles.memberRow}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionTitle}>Share with friends</Text>
+                <Text style={styles.memberSubtitle}>
+                  {outfit.shared ? "Shown in your friends' feed." : "Only you and the wardrobe see it."}
+                </Text>
+              </View>
+              <Chip
+                label={outfit.shared ? "SHARED" : "SHARE"}
+                selected={outfit.shared}
+                disabled={busy}
+                onPress={toggleShared}
+              />
+            </View>
+          </View>
+        )}
 
         {canEdit && (
           <View style={[styles.form, { marginBottom: 10 }]}>

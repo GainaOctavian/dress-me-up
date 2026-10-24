@@ -7,6 +7,7 @@ from app.backend.common.stringproc import stringproc
 from app.backend.api.src.dto.input import user as dto_in
 from app.backend.api.src.repositories import (
     user as users_repo,
+    friend as friends_repo,
 )
 
 
@@ -73,6 +74,10 @@ def delete_user(db: Database, user_id: str) -> None:
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"User with id {user_id} not found"
         )
+    try:
+        friends_repo.forget_user(db, user_id)
+    except Exception:
+        pass  # best effort: the account itself is gone
 
 
 def update_user(

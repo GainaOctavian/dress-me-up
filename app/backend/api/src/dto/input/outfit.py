@@ -12,6 +12,7 @@ class CreateOutfit(BaseModel):
     items: List[models.OutfitItem] = Field(min_length=1)
     body_id: Optional[str] = None   # dressed on this body (plan 12/13)
     pose_id: Optional[str] = None
+    shared: bool = False  # in my friends' feed (plan 08)
 
 
 class UpdateOutfit(BaseModel):
@@ -21,3 +22,4 @@ class UpdateOutfit(BaseModel):
     items: Optional[List[models.OutfitItem]] = Field(default=None, min_length=1)
     body_id: Optional[str] = None
     pose_id: Optional[str] = None
+    shared: Optional[bool] = None  # owner only

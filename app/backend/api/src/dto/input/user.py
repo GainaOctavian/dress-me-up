@@ -16,4 +16,4 @@ class UpdateUser(BaseModel):
     password: Optional[SecretStr] = None
     name: Optional[str] = None
     private_profile: Optional[bool] = None
-    friend_ids: Optional[List[str]] = None
+    # friend_ids change only through friend requests (routes/friend.py)

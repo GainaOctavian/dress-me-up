@@ -2,6 +2,7 @@ import React from "react";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 
 import { useTheme } from "../hooks/useTheme";
+import { Outfit3DParams, Outfit3DScreen } from "../screens/outfits/Outfit3DScreen";
 import OutfitsScreen from "../screens/outfits/OutfitsScreen";
 import { OutfitDetailScreen } from "../screens/outfits/OutfitDetailScreen";
 import { OutfitFormScreen } from "../screens/outfits/OutfitFormScreen";
@@ -11,6 +12,7 @@ export type OutfitsStackParamList = {
   OutfitDetail: { outfitId: string };
   // outfitId set = edit; wardrobeId preselects the wardrobe for a new outfit
   OutfitForm: { outfitId?: string; wardrobeId?: string | null };
+  Outfit3D: Outfit3DParams;
 };
 
 const Stack = createNativeStackNavigator<OutfitsStackParamList>();
@@ -35,6 +37,7 @@ export const OutfitsNavigator = () => {
       />
       <Stack.Screen name="OutfitDetail" component={OutfitDetailScreen} />
       <Stack.Screen name="OutfitForm" component={OutfitFormScreen} />
+      <Stack.Screen name="Outfit3D" component={Outfit3DScreen} />
     </Stack.Navigator>
   );
 };

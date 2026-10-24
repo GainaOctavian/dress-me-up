@@ -13,6 +13,7 @@ from app.backend.api.src.repositories import (
     outfit as outfits_repo,
     item as items_repo,
     wardrobe as wardrobes_repo,
+    user as users_repo,
 )
 from app.backend.api.src.services import wardrobe as wardrobe_service
 from app.backend.api.src.services import image as image_service
@@ -164,6 +165,7 @@ def to_out(db: Database, outfits: List[models.Outfit]) -> List[dto_out.OutfitOut
             **o.model_dump(),
             preview_url=infos.get(o.image_asset_id, none)["url"],
             render_url=s3.presigned_get(o.render.image_key) if o.render and o.render.image_key else None,
+            model_url=s3.presigned_get(o.render.model_key) if o.render and o.render.model_key else None,
             item_refs={oi.item_id: refs[oi.item_id] for oi in o.items if oi.item_id in refs},
         )
         for o in outfits
@@ -187,6 +189,17 @@ def get_visible_outfits(db: Database, user_id: str) -> List[models.Outfit]:
     data = _db(
         "Error retrieving outfits",
         outfits_repo.find_visible_outfits, db, user_id, wardrobe_ids
+    )
+    return [models.Outfit(**o) for o in data]
+
+
+def get_feed(db: Database, user_id: str, before, limit: int) -> List[models.Outfit]:
+    """Plan 08: what my friends shared (by its owner: only the owner can
+    share, so it reaches the owner's friends whatever wardrobe it's in)"""
+    friends = _db("Error retrieving user", users_repo.find_user_by_id, db, user_id) or {}
+    data = _db(
+        "Error retrieving feed",
+        outfits_repo.find_shared_by, db, friends.get("friend_ids") or [], before, limit
     )
     return [models.Outfit(**o) for o in data]
 
@@ -230,6 +243,8 @@ def update_outfit(
 ) -> models.Outfit:
     outfit = _get_outfit(db, outfit_id)
     _require_edit(db, outfit, user_id)
+    if request.shared is not None and request.shared != outfit.shared and outfit.owner_id != user_id:
+        raise _forbidden("Only the outfit's owner can share it")
     if request.items is not None:
         _validate_items(db, user_id, outfit.wardrobe_id, request.items)
     if request.body_id or request.pose_id:
@@ -241,7 +256,8 @@ def update_outfit(
             f"Error updating outfit {outfit_id}",
             outfits_repo.update_outfit_by_id, db, outfit_id, update_data
         )
-    _queue_render(db, _get_outfit(db, outfit_id))
+    if update_data.keys() & {"items", "body_id", "pose_id"}:  # not for a rename or (un)share
+        _queue_render(db, _get_outfit(db, outfit_id))
     return _get_outfit(db, outfit_id)
 
 
@@ -253,8 +269,9 @@ def delete_outfit(db: Database, outfit_id: str, user_id: str) -> None:
         outfits_repo.delete_outfit_by_id, db, outfit_id
     )
     image_service.delete_asset(db, outfit.image_asset_id)
-    if outfit.render and outfit.render.image_key:
-        try:
-            s3.delete(outfit.render.image_key)
-        except Exception:
-            pass  # best effort, like delete_asset
+    for key in (outfit.render.image_key, outfit.render.model_key) if outfit.render else ():
+        if key:
+            try:
+                s3.delete(key)
+            except Exception:
+                pass  # best effort, like delete_asset

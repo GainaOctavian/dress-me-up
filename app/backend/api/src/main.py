@@ -14,6 +14,8 @@ from app.backend.api.src.routes import image
 from app.backend.api.src.routes import outfit
 from app.backend.api.src.routes import meta
 from app.backend.api.src.routes import body
+from app.backend.api.src.routes import friend
+from app.backend.api.src.routes import feed
 from app.backend.common.db import models
 from app.backend.common.db.db import get_db
 
@@ -29,6 +31,9 @@ INDEXES = [
     (models.Outfit.COLLECTION_NAME, "wardrobe_id", {}),
     (models.Outfit.COLLECTION_NAME, "items.item_id", {}),
     (models.Body.COLLECTION_NAME, "owner_id", {}),
+    (models.Outfit.COLLECTION_NAME, [("owner_id", 1), ("shared", 1), ("created_at", -1)], {}),  # feed
+    (models.FriendRequest.COLLECTION_NAME, "to_user_id", {}),
+    (models.FriendRequest.COLLECTION_NAME, "from_user_id", {}),
 ]
 
 
@@ -70,6 +75,8 @@ app.include_router(image.router)
 app.include_router(outfit.router)
 app.include_router(meta.router)
 app.include_router(body.router)
+app.include_router(friend.router)
+app.include_router(feed.router)
 
 
 @app.get("/", include_in_schema=False)

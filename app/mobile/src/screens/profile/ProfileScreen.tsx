@@ -11,6 +11,7 @@ import {
   Switch,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { useNavigation } from "@react-navigation/native";
 import { useAuth } from "../../hooks/useAuth";
 import {
   getCurrentUser,
@@ -23,6 +24,7 @@ import { createProfileStyles } from "../../styles/profile";
 import { MannequinSection } from "../../components/body/MannequinSection";
 
 export const ProfileScreen: React.FC = () => {
+  const navigation = useNavigation<any>();
   const { token, logout, setUser: setAuthUser } = useAuth();
   const { colors, mode, toggleTheme } = useTheme();
 
@@ -351,12 +353,16 @@ export const ProfileScreen: React.FC = () => {
                 </Text>
               </View>
 
-              <View style={styles.row}>
+              <TouchableOpacity
+                style={styles.row}
+                onPress={() => navigation.navigate("Social", { screen: "Friends" })}
+                accessibilityRole="button"
+              >
                 <Text style={styles.label}>Friends</Text>
                 <Text style={styles.value}>
-                  {user?.friend_ids?.length ?? 0}
+                  {user?.friend_ids?.length ?? 0} ›
                 </Text>
-              </View>
+              </TouchableOpacity>
             </>
           )}
         </View>

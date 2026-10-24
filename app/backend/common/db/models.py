@@ -30,6 +30,27 @@ class User(BaseModel):
         populate_by_name = True
 
 
+class FriendRequestStatus(str, Enum):
+    PENDING = "pending"
+    ACCEPTED = "accepted"
+    DECLINED = "declined"
+
+
+class FriendRequest(BaseModel):
+    """Plan 08: a pending friendship. Accepting adds each user to the
+    other's `friend_ids` (the read path)."""
+    id: str = Field(default_factory=generate_id, alias="_id")
+    from_user_id: str
+    to_user_id: str
+    status: FriendRequestStatus = FriendRequestStatus.PENDING
+    created_at: UtcDatetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+    COLLECTION_NAME: ClassVar[str] = "friend_requests"
+
+    class Config:
+        populate_by_name = True
+
+
 class WardrobeRole(str, Enum):
     OWNER = "owner"
     EDITOR = "editor"
@@ -159,6 +180,7 @@ class OutfitRender(BaseModel):
     status: str = "queued"  # queued | done | failed
     version: int = 0
     image_key: Optional[str] = None  # renders/<outfit>/<pose>-<sha10>.webp
+    model_key: Optional[str] = None  # same, .glb: the dressed scene for the 3D viewer
     error: Optional[str] = None
 
 

@@ -4,7 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 const PREFIX = "cache:";
 // Bump when cached API data changes shape or gets backfilled server-side
 // (v2: items gained `subcategory`). Old entries are ignored, then cleared.
-const VERSION = "v5";
+const VERSION = "v6";
 
 export const cacheKey = (key: string) => `${PREFIX}${VERSION}:${key}`;
 

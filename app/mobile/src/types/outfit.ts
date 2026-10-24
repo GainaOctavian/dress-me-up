@@ -74,6 +74,7 @@ export interface Outfit {
   pose_id?: string | null;
   render?: OutfitRender | null; // server 3D render (plan 19)
   render_url?: string | null; // presigned, the latest finished render
+  model_url?: string | null; // the same scene as a GLB: tap the picture to turn it round
 }
 
 // queued: a newer version is rendering (render_url may still show the old one)
@@ -90,6 +91,7 @@ export interface OutfitPayload {
   items: OutfitItem[];
   body_id?: string | null;
   pose_id?: string | null;
+  shared?: boolean; // in friends' feed (plan 08); only the owner may change it
 }
 
 export interface OutfitResponse {

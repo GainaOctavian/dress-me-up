@@ -18,6 +18,14 @@ def find_visible_outfits(db: Database, owner_id: str, wardrobe_ids: list):
     ).sort("created_at", -1).to_list()
 
 
+def find_shared_by(db: Database, owner_ids: list, before, limit: int):
+    """Shared outfits of these owners, newest first, older than `before`"""
+    query = {"owner_id": {"$in": owner_ids}, "shared": True}
+    if before:
+        query["created_at"] = {"$lt": before}
+    return _col(db).find(query).sort("created_at", -1).limit(limit).to_list()
+
+
 def find_outfits_by_wardrobe(db: Database, wardrobe_id: str):
     return _col(db).find({"wardrobe_id": wardrobe_id}).sort("created_at", -1).to_list()
 

@@ -5,6 +5,7 @@ from app.backend.common.db.db import DB
 from app.backend.api.src.auth import auth_token
 from app.backend.api.src.auth.auth_token import AUTH
 from app.backend.api.src.services import user as service
+from app.backend.api.src.services import friend as friend_service
 from app.backend.api.src.dto.input import user as dto_in
 from app.backend.api.src.dto.output import user as dto_out
 
@@ -21,11 +22,12 @@ async def get_current_user(db: DB, token: AUTH):
 
 @router.get("/{user_id}",
             status_code=status.HTTP_200_OK,
-            response_model=dto_out.GetUser)
+            response_model=dto_out.GetPublicUser)
 async def get_user_by_id(db: DB, token: AUTH, user_id: str):
-    """Get user by ID"""
+    """Someone's public profile (email only for friends and wardrobe co-members)"""
+    current_user_id = auth_token.get_user_id_from_token(token)
     user = service.get_user_by_id(db, user_id)
-    return dto_out.GetUser(user=user)
+    return dto_out.GetPublicUser(user=friend_service.public_user(db, current_user_id, user))
 
 
 @router.post("/",

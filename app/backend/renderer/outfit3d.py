@@ -14,11 +14,11 @@ Items without a model (belts, hats, ties, bags...) aren't drawn yet.
 import os
 from functools import lru_cache
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 
 import numpy as np
 
-from app.backend.renderer import dress, fabric, mhclo
+from app.backend.renderer import dress, fabric, glb, mhclo
 
 CLOTHES = Path(os.getenv("CLOTHES", "/clothes"))
 
@@ -212,8 +212,10 @@ def _hide_covered(drawn, front: float = 0.02, poke: float = 0.03):
         bm.free()
 
 
-def render_outfit(body_id: str, pose_id: str, garments: List[dress.Garment], out_path: str) -> None:
-    """`garments` bottom layer first (plan 11 draw order)."""
+def render_outfit(body_id: str, pose_id: str, garments: List[dress.Garment], out_path: str,
+                  model_path: Optional[str] = None) -> None:
+    """`garments` bottom layer first (plan 11 draw order). `model_path`:
+    also export the dressed scene as a GLB (glb.py) for the 3D viewer."""
     import tempfile
     import trimesh
     from PIL import Image
@@ -308,3 +310,5 @@ def render_outfit(body_id: str, pose_id: str, garments: List[dress.Garment], out
     _hide_covered(drawn)
     scene.render.filepath = os.path.abspath(out_path)
     bpy.ops.render.render(write_still=True)
+    if model_path:
+        glb.export([body, *drawn], os.path.abspath(model_path))

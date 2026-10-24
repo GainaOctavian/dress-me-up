@@ -24,5 +24,5 @@ export interface UpdateUser {
   password?: string;
   name?: string | null;
   private_profile?: boolean;
-  friend_ids?: string[];
+  // friend_ids change only through friend requests (api/friends.ts)
 }

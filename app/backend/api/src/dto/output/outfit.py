@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel
 
 from app.backend.common.db import models
+from app.backend.api.src.dto.output.friend import PublicUser
 
 
 class OutfitItemRef(BaseModel):
@@ -19,6 +20,7 @@ class OutfitItemRef(BaseModel):
 class OutfitOut(models.Outfit):
     preview_url: Optional[str] = None
     render_url: Optional[str] = None  # 3D render (plan 19), presigned 24h
+    model_url: Optional[str] = None  # the same scene as a GLB, for the app's 3D viewer
     # item_id -> summary; items deleted since are simply missing
     item_refs: Dict[str, OutfitItemRef] = {}
 
@@ -28,6 +30,12 @@ class GetOutfit(BaseModel):
     DTO for retrieving an outfit
     """
     outfit: OutfitOut
+
+
+class GetFeed(BaseModel):
+    """Friends' shared outfits, newest first; `owners` by user id"""
+    outfits: List[OutfitOut]
+    owners: Dict[str, PublicUser]
 
 
 class GetAllOutfits(BaseModel):

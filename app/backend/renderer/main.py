@@ -66,23 +66,29 @@ def handle(outfit_id: str, version: int) -> None:
     outfit = models.Outfit(**data)
     started = time.monotonic()
     with tempfile.TemporaryDirectory() as tmp:
-        png = os.path.join(tmp, "render.png")
-        outfit3d.render_outfit(outfit.body_id, outfit.pose_id or "neutral", garments(db, outfit), png)
+        png, glb = os.path.join(tmp, "render.png"), os.path.join(tmp, "scene.glb")
+        outfit3d.render_outfit(outfit.body_id, outfit.pose_id or "neutral", garments(db, outfit), png, glb)
         buf = io.BytesIO()
         Image.open(png).save(buf, "WEBP", quality=90, method=6)
+        model = open(glb, "rb").read()
     webp = buf.getvalue()
-    key = f"renders/{outfit_id}/{outfit.pose_id or 'neutral'}-{hashlib.sha256(webp).hexdigest()[:10]}.webp"
+    stem = f"renders/{outfit_id}/{outfit.pose_id or 'neutral'}-{hashlib.sha256(webp).hexdigest()[:10]}"
+    key, model_key = f"{stem}.webp", f"{stem}.glb"
     s3.put_bytes(key, webp, "image/webp")
-    old = (data.get("render") or {}).get("image_key")
+    s3.put_bytes(model_key, model, "model/gltf-binary")
+    old = data.get("render") or {}
     result = outfits.update_one(
         {"_id": outfit_id, "render.version": version},
-        {"$set": {"render.status": "done", "render.image_key": key, "render.error": None}},
+        {"$set": {"render.status": "done", "render.image_key": key, "render.model_key": model_key,
+                  "render.error": None}},
     )
-    if result.modified_count == 0:
-        s3.delete(key)  # saved again while rendering: the newer job wins
+    if result.modified_count == 0:  # saved again while rendering: the newer job wins
+        s3.delete(key)
+        s3.delete(model_key)
         return
-    if old and old != key:
-        s3.delete(old)
+    for k in ("image_key", "model_key"):
+        if old.get(k) and old[k] not in (key, model_key):
+            s3.delete(old[k])
     log.info("outfit %s v%s rendered in %.1fs", outfit_id, version, time.monotonic() - started)
 
 
