@@ -23,7 +23,7 @@ from scipy.sparse import coo_matrix
 from scipy.sparse.csgraph import connected_components
 from scipy.spatial import cKDTree
 
-from app.backend.renderer import mhclo, outfit3d
+from app.backend.renderer import dress, mhclo, outfit3d
 
 # out folder: (suit folder, body to fit on, island size ranks kept)
 PARTS = {
@@ -40,7 +40,7 @@ TOUCH = 0.005  # m: a small island this close to a kept one is sewn on it
 def split(src: Path, out: Path, body_id: str, ranks):
     clo = next(src.glob("*.mhclo"))
     c = mhclo.load(str(clo))
-    v = c.fit(outfit3d.full_body(body_id, "neutral"))
+    v = c.fit(outfit3d.full_body(dress.mannequin(body_id), "neutral"))
     tv, _ = c.triangles()
     n = len(v)
     e = np.concatenate([tv[:, [0, 1]], tv[:, [1, 2]]])

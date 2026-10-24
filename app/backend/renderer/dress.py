@@ -1,24 +1,49 @@
 """Shared scene pieces of the 3D renderer (plan 19): the mannequin camera
-(the same orthographic camera the body PNGs use), the body's neutral
-keypoints, the item-as-garment record and small Blender helpers.
+(the same orthographic camera the body PNGs use), the body to dress
+(BodySpec), the item-as-garment record and small Blender helpers.
 outfit3d.py does the dressing.
 """
 import json
 import math
 import os
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Dict, Optional, Tuple
 
 import numpy as np
 
-# same camera as app/infra/body-assets/render_bodies.py (keep in sync)
-SIZE = (1200, 1800)
-WORLD_H = 1.85
-FLOOR_Y = 0.97
+from app.backend.renderer.bodies import FLOOR_Y, SIZE, WORLD_H  # the body images' camera
 BODY_ASSETS = Path(os.getenv("BODY_ASSETS", "/body-assets"))  # render_bodies.py's out/
-GENDER = {"mannequin_male": 0.0, "mannequin_female": 1.0}
+
+
+@dataclass(frozen=True)
+class BodySpec:
+    """What the renderer needs of a body: Anny phenotype, solved pose params
+    per pose (bodies.build) and the neutral keypoints (normalized 0..1).
+    Hashed by `key` only (posed meshes are cached by it), so a rebuilt
+    body needs a new key."""
+    key: str
+    gender: str = field(compare=False)
+    pheno: Dict[str, float] = field(compare=False)
+    params: Dict[str, np.ndarray] = field(compare=False)
+    keypoints: Dict[str, list] = field(compare=False)
+
+
+@lru_cache(maxsize=4)
+def mannequin(body_id: str) -> BodySpec:
+    """A built-in mannequin, from the render_bodies.py output baked into the image."""
+    from app.backend.renderer import bodies
+    spec = _manifest()[body_id]
+    pheno = spec.get("phenotype") or {k: 0.5 for k in bodies.model().phenotype_labels} | {
+        "gender": bodies.GENDER[spec["gender"]]}
+    return BodySpec(key=body_id, gender=spec["gender"], pheno=pheno,
+                    params={p: np.load(BODY_ASSETS / body_id / f"{p}.pose.npy") for p in spec["poses"]},
+                    keypoints=spec["poses"]["neutral"]["keypoints"])
+
+
+def is_mannequin(body_id: str) -> bool:
+    return body_id in _manifest()
 
 
 @dataclass
@@ -52,9 +77,9 @@ def to_px(points, cam):
                      (0.5 - (points[:, 2] - cz) / h) * SIZE[1]], axis=1)
 
 
-def _keypoints(body_id):
-    kp = _manifest()[body_id]["poses"]["neutral"]["keypoints"]
-    return {k: np.array([v[0] * SIZE[0], v[1] * SIZE[1]]) for k, v in kp.items()}
+def keypoints_px(body: BodySpec):
+    """The body's neutral keypoints in image px."""
+    return {k: np.array([v[0] * SIZE[0], v[1] * SIZE[1]]) for k, v in body.keypoints.items()}
 
 
 def _scene():

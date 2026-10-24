@@ -77,20 +77,19 @@ def _model():
 
 
 @lru_cache(maxsize=16)
-def _posed(body_id: str, pose_id: str):
+def _posed(body: dress.BodySpec, pose_id: str):
     """(vertices, {bone: head position}) of the posed body."""
     import torch
     m = _model()
-    pheno = {k: 0.5 for k in m.phenotype_labels} | {"gender": dress.GENDER[body_id]}
-    pose = torch.from_numpy(np.load(dress.BODY_ASSETS / body_id / f"{pose_id}.pose.npy"))
-    out = m(pose_parameters=pose[None], phenotype_kwargs=pheno)
+    pose = torch.from_numpy(np.asarray(body.params[pose_id], dtype=np.float32))
+    out = m(pose_parameters=pose[None], phenotype_kwargs=body.pheno)
     joints = dict(zip(m.bone_labels, out["bone_poses"][0, :, :3, 3].numpy()))
     return out["vertices"][0].numpy(), joints
 
 
-def full_body(body_id: str, pose_id: str) -> np.ndarray:
+def full_body(body: dress.BodySpec, pose_id: str) -> np.ndarray:
     """The body in MakeHuman's hm08 topology (helpers included), posed."""
-    return _posed(body_id, pose_id)[0]
+    return _posed(body, pose_id)[0]
 
 
 class Band:
@@ -139,10 +138,10 @@ class Band:
         return tv, tv
 
 
-def band(sub: str, wearing, body_id: str):
+def band(sub: str, wearing, body: dress.BodySpec):
     """The Band for a belt (over the trousers: None without) / watch / bracelet (left wrist)."""
     height, gap = BANDS[sub]
-    neutral, joints = _posed(body_id, "neutral")
+    neutral, joints = _posed(body, "neutral")
     if sub == "belt":
         legs = [c for g, c in wearing if g.slot == "legs" and isinstance(c, mhclo.Clothes)]
         if not legs:
@@ -212,18 +211,18 @@ def _hide_covered(drawn, front: float = 0.02, poke: float = 0.03):
         bm.free()
 
 
-def render_outfit(body_id: str, pose_id: str, garments: List[dress.Garment], out_path: str,
+def render_outfit(body: dress.BodySpec, pose_id: str, garments: List[dress.Garment], out_path: str,
                   model_path: Optional[str] = None) -> None:
     """`garments` bottom layer first (plan 11 draw order). `model_path`:
     also export the dressed scene as a GLB (glb.py) for the 3D viewer."""
     import tempfile
     import trimesh
     from PIL import Image
-    neutral, posed = full_body(body_id, "neutral"), full_body(body_id, pose_id)
+    neutral, posed = full_body(body, "neutral"), full_body(body, pose_id)
     faces = body_faces()
-    k = dress._keypoints(body_id)
+    k = dress.keypoints_px(body)
     cam_n = dress.camera(neutral[:mhclo.BODY_VERTS])
-    female = body_id.endswith("female")
+    female = body.gender == "female"
     import bpy  # after torch (Anny): bpy needs the OpenMP runtime torch loads
 
     wearing = []
@@ -233,7 +232,7 @@ def render_outfit(body_id: str, pose_id: str, garments: List[dress.Garment], out
             folder = CLOTHES / name[1 if female else 0]
             wearing.append((g, mhclo.load(str(next(folder.glob("*.mhclo"))))))
         elif g.subcategory in BANDS:
-            b = band(g.subcategory, wearing, body_id)
+            b = band(g.subcategory, wearing, body)
             if b is not None:
                 wearing.append((g, b))
 

@@ -9,8 +9,9 @@ import { Body } from "../../types/body";
 import { Chip } from "../ui/Chip";
 import { BodyCanvas } from "./BodyCanvas";
 
-// Profile card: pick the default mannequin for new outfits (plan 12).
-export const MannequinSection: React.FC = () => {
+// Profile card: pick the default mannequin for new outfits (plan 12), my
+// own body included once it's built (plan 16). `version` changes = reload.
+export const MannequinSection: React.FC<{ version?: number }> = ({ version = 0 }) => {
   const { token } = useAuth();
   const { colors } = useTheme();
   const styles = useMemo(() => createWardrobeStyles(colors), [colors]);
@@ -27,11 +28,11 @@ export const MannequinSection: React.FC = () => {
   };
 
   useEffect(() => {
-    load();
+    load(version > 0);
     getDefaultBodyId().then(setSelected);
-  }, [token]);
+  }, [token, version]);
 
-  const mannequins = (bodies ?? []).filter((b) => b.kind === "mannequin");
+  const mannequins = (bodies ?? []).filter((b) => b.kind === "mannequin" || b.status === "ready");
   const body = mannequins.find((b) => b.id === selected) ?? mannequins[0];
   const pose = body?.poses.neutral ?? (body ? Object.values(body.poses)[0] : undefined);
 
@@ -48,7 +49,7 @@ export const MannequinSection: React.FC = () => {
         {mannequins.map((b) => (
           <Chip
             key={b.id}
-            label={b.gender === "female" ? "Female" : "Male"}
+            label={b.kind === "user" ? "Me" : b.gender === "female" ? "Female" : "Male"}
             selected={body?.id === b.id}
             onPress={() => {
               setSelected(b.id);

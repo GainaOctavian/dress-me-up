@@ -106,6 +106,11 @@ def _check_body(db: Database, user_id: str, body_id, pose_id) -> None:
     if not body_id:
         return
     body = body_service.get_body(db, body_id, user_id)
+    if body.status != "ready":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Your body model is still being built. Try again in a minute."
+        )
     if pose_id and pose_id not in body.poses:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -191,6 +196,14 @@ def get_visible_outfits(db: Database, user_id: str) -> List[models.Outfit]:
         outfits_repo.find_visible_outfits, db, user_id, wardrobe_ids
     )
     return [models.Outfit(**o) for o in data]
+
+
+def move_off_body(db: Database, body_id: str, to_body_id: str) -> None:
+    """A deleted body's outfits: dressed on `to_body_id` instead, re-rendered"""
+    data = _db("Error retrieving outfits", outfits_repo.find_outfits_by_body, db, body_id)
+    for o in data:
+        _db("Error updating outfit", outfits_repo.update_outfit_by_id, db, o["_id"], {"body_id": to_body_id})
+        _queue_render(db, _get_outfit(db, o["_id"]))
 
 
 def get_feed(db: Database, user_id: str, before, limit: int) -> List[models.Outfit]:

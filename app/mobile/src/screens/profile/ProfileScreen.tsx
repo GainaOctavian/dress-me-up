@@ -22,9 +22,11 @@ import { User } from "../../types/user";
 import { useTheme } from "../../hooks/useTheme";
 import { createProfileStyles } from "../../styles/profile";
 import { MannequinSection } from "../../components/body/MannequinSection";
+import { MyBodySection } from "../../components/body/MyBodySection";
 
 export const ProfileScreen: React.FC = () => {
   const navigation = useNavigation<any>();
+  const [bodiesVersion, setBodiesVersion] = useState(0); // my body changed: reload the picker
   const { token, logout, setUser: setAuthUser } = useAuth();
   const { colors, mode, toggleTheme } = useTheme();
 
@@ -241,7 +243,8 @@ export const ProfileScreen: React.FC = () => {
 
         {error ? <Text style={styles.error}>{error}</Text> : null}
 
-        <MannequinSection />
+        <MyBodySection onChange={() => setBodiesVersion((v) => v + 1)} />
+        <MannequinSection version={bodiesVersion} />
 
         <View style={styles.card}>
           <View style={styles.cardHeader}>

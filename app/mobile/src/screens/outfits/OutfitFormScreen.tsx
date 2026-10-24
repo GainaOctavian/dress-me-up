@@ -20,7 +20,7 @@ import { createOutfitStyles } from "../../styles/outfit";
 import { createOutfit, getMyOutfits, getOutfit, updateOutfit } from "../../api/outfits";
 import { getAllRelatedWardrobes } from "../../api/wardrobes";
 import { getMyItems, getWardrobeItems } from "../../api/items";
-import { getDefaultBodyId, useBodies } from "../../api/bodies";
+import { getDefaultBodyId, myBody, useBodies } from "../../api/bodies";
 import { errorMessage } from "../../api/client";
 import { Item } from "../../types/item";
 import { Outfit, OutfitItem, OutfitItemRef } from "../../types/outfit";
@@ -212,6 +212,9 @@ export const OutfitFormScreen: React.FC<Props> = ({ route, navigation }) => {
             ) : null}
             <Chip label="Male" selected={bodyId === "mannequin_male"} onPress={() => setBodyId("mannequin_male")} />
             <Chip label="Female" selected={bodyId === "mannequin_female"} onPress={() => setBodyId("mannequin_female")} />
+            {myBody(bodies)?.status === "ready" ? (
+              <Chip label="Me" selected={bodyId === myBody(bodies)!.id} onPress={() => setBodyId(myBody(bodies)!.id)} />
+            ) : null}
           </View>
           {bodyId && poseIds.length > 1 ? (
             <>

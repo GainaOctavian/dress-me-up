@@ -16,4 +16,16 @@ export interface Body {
   format: number;
   poses: Record<string, BodyPose>;
   measurements_cm: Record<string, number>;
+  // the user's own body (plan 16): what they typed and the build's state
+  input_cm?: Partial<Record<MeasurementKey, number>>;
+  status?: "building" | "ready" | "failed";
+  error?: string | null;
+}
+
+export type MeasurementKey = "height_cm" | "weight_kg" | "chest_cm" | "waist_cm" | "hips_cm";
+
+export interface SaveMyBody extends Partial<Record<MeasurementKey, number>> {
+  gender: "male" | "female";
+  height_cm: number;
+  weight_kg: number;
 }

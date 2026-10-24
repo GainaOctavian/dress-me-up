@@ -11,11 +11,9 @@ from app.backend.common.db import models
 from app.backend.common.db.db import get_db
 
 
-def main(everything: bool) -> None:
-    outfits = get_db().get_collection(models.Outfit.COLLECTION_NAME)
-    query = {"body_id": {"$ne": None}}
-    if not everything:
-        query["render.model_key"] = None  # also matches outfits never rendered
+def queue_renders(db, query: dict) -> int:
+    """Bump and queue a render for every outfit matching `query`."""
+    outfits = db.get_collection(models.Outfit.COLLECTION_NAME)
     n = 0
     for data in outfits.find(query):
         version = ((data.get("render") or {}).get("version") or 0) + 1
@@ -23,7 +21,14 @@ def main(everything: bool) -> None:
         outfits.update_one({"_id": data["_id"]}, {"$set": {"render": render}})
         queue.publish(queue.RENDER_QUEUE, {"outfit_id": data["_id"], "version": version})
         n += 1
-    print(f"queued {n} outfit render(s)")
+    return n
+
+
+def main(everything: bool) -> None:
+    query = {"body_id": {"$ne": None}}
+    if not everything:
+        query["render.model_key"] = None  # also matches outfits never rendered
+    print(f"queued {queue_renders(get_db(), query)} outfit render(s)")
 
 
 if __name__ == "__main__":

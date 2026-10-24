@@ -228,18 +228,28 @@ class BodyPose(BaseModel):
     image_key: str
     size: List[int]  # [width, height] in px
     keypoints: Dict[str, List[float]]
+    # user bodies (plan 16): Anny pose params (.npy) the 3D renderer re-poses
+    # with; mannequins keep theirs in the renderer image
+    params_key: Optional[str] = None
 
 
 class Body(BaseModel):
     """A body garments are fitted onto (plan 12): built-in mannequins
-    (owner_id None, fixed ids) and later the user's own body (plan 16)."""
+    (owner_id None, fixed ids) and the user's own body (plan 16a: one per
+    user, built by the renderer from the measurements they typed)."""
     id: str = Field(default_factory=generate_id, alias="_id")
     owner_id: Optional[str] = None
     kind: BodyKind = BodyKind.MANNEQUIN
     gender: str  # male | female
     format: int = 1
     poses: Dict[str, BodyPose]
-    measurements_cm: Dict[str, float] = Field(default_factory=dict)
+    measurements_cm: Dict[str, float] = Field(default_factory=dict)  # measured on the built body
+    # user bodies: what they typed (height_cm, weight_kg, chest/waist/hips_cm),
+    # the build's state and the Anny phenotype fitted to it
+    input_cm: Dict[str, float] = Field(default_factory=dict)
+    status: str = "ready"  # building | ready | failed
+    error: Optional[str] = None
+    phenotype: Dict[str, float] = Field(default_factory=dict)
     created_at: UtcDatetime = Field(
         default_factory=lambda: datetime.now(timezone.utc)
     )

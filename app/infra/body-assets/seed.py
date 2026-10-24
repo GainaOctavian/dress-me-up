@@ -42,7 +42,7 @@ def main():
             poses[pose_id] = models.BodyPose(image_key=key, **pose)
         body = models.Body(
             id=body_id, gender=spec["gender"], poses=poses,
-            measurements_cm=spec["measurements_cm"],
+            measurements_cm=spec["measurements_cm"], phenotype=spec.get("phenotype", {}),
         )
         bodies.replace_one({"_id": body_id}, body.model_dump(by_alias=True), upsert=True)
         print("seeded", body_id, list(poses))

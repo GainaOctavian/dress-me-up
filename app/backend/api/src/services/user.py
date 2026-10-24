@@ -78,6 +78,11 @@ def delete_user(db: Database, user_id: str) -> None:
         friends_repo.forget_user(db, user_id)
     except Exception:
         pass  # best effort: the account itself is gone
+    try:
+        from app.backend.api.src.services import body as body_service
+        body_service.delete_my_body(db, user_id)  # plan 16: never outlives the account
+    except HTTPException:
+        pass  # they had none
 
 
 def update_user(

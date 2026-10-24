@@ -26,6 +26,10 @@ def find_shared_by(db: Database, owner_ids: list, before, limit: int):
     return _col(db).find(query).sort("created_at", -1).limit(limit).to_list()
 
 
+def find_outfits_by_body(db: Database, body_id: str):
+    return _col(db).find({"body_id": body_id}).to_list()
+
+
 def find_outfits_by_wardrobe(db: Database, wardrobe_id: str):
     return _col(db).find({"wardrobe_id": wardrobe_id}).sort("created_at", -1).to_list()
 

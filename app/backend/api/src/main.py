@@ -31,6 +31,7 @@ INDEXES = [
     (models.Outfit.COLLECTION_NAME, "wardrobe_id", {}),
     (models.Outfit.COLLECTION_NAME, "items.item_id", {}),
     (models.Body.COLLECTION_NAME, "owner_id", {}),
+    (models.Outfit.COLLECTION_NAME, "body_id", {}),  # a deleted user body's outfits
     (models.Outfit.COLLECTION_NAME, [("owner_id", 1), ("shared", 1), ("created_at", -1)], {}),  # feed
     (models.FriendRequest.COLLECTION_NAME, "to_user_id", {}),
     (models.FriendRequest.COLLECTION_NAME, "from_user_id", {}),
